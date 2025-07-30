@@ -19,8 +19,7 @@ public class Main {
       serverSocket.setReuseAddress(true);
       // Wait for connection from client.
       clientSocket = serverSocket.accept();
-      OutputStream outputStream = clientSocket.getOutputStream();
-      outputStream.write("+PONG\r\n".getBytes());
+      sendMessage(clientSocket,  "+PONG\r\n");
     } catch (IOException e) {
       System.out.println("IOException: " + e.getMessage());
     } finally {
@@ -32,5 +31,10 @@ public class Main {
         System.out.println("IOException: " + e.getMessage());
       }
     }
+  }
+
+  private static void sendMessage(Socket socket, String message) throws IOException {
+    OutputStream outputStream = socket.getOutputStream();
+    outputStream.write(message.getBytes());
   }
 }
