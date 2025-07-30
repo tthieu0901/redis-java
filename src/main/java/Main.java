@@ -33,10 +33,12 @@ public class Main {
     }
 
     private static void handleClientSocket(Socket clientSocket) throws IOException {
-        String messages = readMessage(clientSocket);
-        var nPing = count(messages, "PING");
-        for (int i = 0; i < nPing; i++) {
-            sendMessage(clientSocket, "+PONG\r\n");
+        while (true) {
+            String messages = readMessage(clientSocket);
+            var nPing = count(messages, "PING");
+            for (int i = 0; i < nPing; i++) {
+                sendMessage(clientSocket, "+PONG\r\n");
+            }
         }
     }
 
