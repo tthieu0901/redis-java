@@ -37,8 +37,7 @@ public class Main {
     private static void handleClientSocket(Socket clientSocket) throws IOException {
         List<String> messages = readMessage(clientSocket);
 
-        for (String message : messages) {
-            System.out.println(message);
+        for (String _ : messages) {
             sendMessage(clientSocket, "+PONG\r\n");
         }
     }
@@ -50,7 +49,6 @@ public class Main {
             byte[] buffer = new byte[1024];
             int bytesRead = inputStream.read(buffer);
             String message = new String(buffer, 0, bytesRead);
-            System.out.println("Received message: " + message);
             return Arrays.stream(message.split("\n")).toList();
         } catch (IOException e) {
             System.out.println("IOException: " + e.getMessage());
