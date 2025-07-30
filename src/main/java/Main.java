@@ -3,8 +3,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.Arrays;
-import java.util.List;
 
 public class Main {
     public static void main(String[] args) {
@@ -35,29 +33,39 @@ public class Main {
     }
 
     private static void handleClientSocket(Socket clientSocket) throws IOException {
-        List<String> messages = readMessage(clientSocket);
-
-        for (String _ : messages) {
+        String messages = readMessage(clientSocket);
+        var nPing = count(messages, "PING");
+        for (int i = 0; i < nPing; i++) {
             sendMessage(clientSocket, "+PONG\r\n");
         }
     }
 
-    private static List<String> readMessage(Socket socket) {
+    private static String readMessage(Socket socket) {
         InputStream inputStream = null;
+        StringBuilder message = new StringBuilder();
         try {
             inputStream = socket.getInputStream();
             byte[] buffer = new byte[1024];
             int bytesRead = inputStream.read(buffer);
-            String message = new String(buffer, 0, bytesRead);
-            return Arrays.stream(message.split("\n")).filter("PING"::equals).toList();
+            message.append(new String(buffer, 0, bytesRead));
+            return message.toString();
         } catch (IOException e) {
             System.out.println("IOException: " + e.getMessage());
         }
-        return List.of();
+        return "";
     }
 
     private static void sendMessage(Socket socket, String message) throws IOException {
         OutputStream outputStream = socket.getOutputStream();
         outputStream.write(message.getBytes());
+    }
+
+    public static int count(String text, String find) {
+        int index = 0, count = 0, length = find.length();
+        while ((index = text.indexOf(find, index)) != -1) {
+            index += length;
+            count++;
+        }
+        return count;
     }
 }
