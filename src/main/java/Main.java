@@ -49,7 +49,7 @@ public class Main {
             byte[] buffer = new byte[1024];
             int bytesRead = inputStream.read(buffer);
             String message = new String(buffer, 0, bytesRead);
-            return Arrays.stream(message.split("\n")).toList();
+            return Arrays.stream(message.split("\n")).filter("PING"::equals).toList();
         } catch (IOException e) {
             System.out.println("IOException: " + e.getMessage());
         }

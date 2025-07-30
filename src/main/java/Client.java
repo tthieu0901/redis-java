@@ -10,15 +10,15 @@ public class Client {
             socket.connect(new InetSocketAddress("localhost", 6379));
             System.out.println("Connected to server");
             OutputStream outputStream = socket.getOutputStream();
-            outputStream.write("PING\nPING".getBytes());
+            outputStream.write("PING\nPING\nPING\n".getBytes());
 
             InputStream inputStream = socket.getInputStream();
             byte[] buffer = new byte[1024];
             int bytesRead = inputStream.read(buffer);
-            if (bytesRead == -1) {
-                throw new IOException("No data received");
+            while (bytesRead != -1) {
+                System.out.println(new String(buffer, 0, bytesRead));
+                bytesRead = inputStream.read(buffer);
             }
-            System.out.println(new String(buffer, 0, bytesRead));
             System.out.println("Disconnected from server");
             inputStream.close();
             outputStream.close();
