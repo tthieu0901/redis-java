@@ -32,6 +32,7 @@ public class Protocol {
         SET,
         GET,
         ECHO,
+        RPUSH,
         ;
 
         public static Command findCommand(String command) {

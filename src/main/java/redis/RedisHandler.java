@@ -1,6 +1,8 @@
 package redis;
 
 import protocol.Protocol;
+import redis.internal.RedisListCore;
+import redis.internal.RedisStringCore;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -9,44 +11,45 @@ import java.util.Objects;
 import java.util.Optional;
 
 public class RedisHandler {
-    private final RedisCore redisCore = RedisCore.getInstance();
+    private final RedisStringCore redisStringCore;
+    private final RedisListCore redisListCore;
     private final OutputStream outputStream;
 
     public RedisHandler(OutputStream outputStream) {
         this.outputStream = outputStream;
+        this.redisStringCore = RedisStringCore.getInstance();
+        this.redisListCore = RedisListCore.getInstance();
     }
 
     public void handleCommand(List<Object> request) throws IOException {
         var req = request.stream().filter(Objects::nonNull).map(Object::toString).toList();
         var cmd = getCmd(req);
         switch (cmd) {
-            case PING -> handlePing();
-            case ECHO -> handleEcho(req);
-            case SET -> handleSet(req);
-            case GET -> handleGet(req);
+            case PING -> ping();
+            case ECHO -> echo(req);
+            case SET -> set(req);
+            case GET -> get(req);
+            case RPUSH -> rpush(req);
             default -> throw new IllegalArgumentException("Command not supported yet: " + cmd.name());
         }
     }
 
-    private Protocol.Command getCmd(List<String> req) {
-        if (req.isEmpty()) {
-            throw new IllegalArgumentException("No command received");
-        }
-        var command = req.getFirst();
-        return Optional.ofNullable(Protocol.Command.findCommand(command))
-                .orElseThrow(() -> new IllegalArgumentException("Invalid command received: " + command));
+    private void rpush(List<String> req) throws IOException {
+        validateNumberOfArgs(req, 3);
+        var key = req.get(1);
+        var items = req.subList(2, req.size());
+        var len = redisListCore.rpush(key, items);
+        RedisWriteProcessor.sendInt(outputStream, len);
     }
 
-    private void handlePing() throws IOException {
+    private void ping() throws IOException {
         RedisWriteProcessor.sendString(outputStream, "PONG");
     }
 
-    private void handleGet(List<String> req) throws IOException {
-        if (req.size() < 2) {
-            throw new IllegalArgumentException("No key received");
-        }
+    private void get(List<String> req) throws IOException {
+        validateNumberOfArgs(req, 2);
         var key = req.get(1);
-        var value = redisCore.get(key);
+        var value = redisStringCore.get(key);
         if (value == null) {
             RedisWriteProcessor.sendNull(outputStream);
         } else {
@@ -54,26 +57,31 @@ public class RedisHandler {
         }
     }
 
-    private void handleSet(List<String> req) throws IOException {
-        if (req.size() < 3) {
-            throw new IllegalArgumentException("No key or value received");
-        }
+    private void set(List<String> req) throws IOException {
+        validateNumberOfArgs(req, 3);
         var key = req.get(1);
         var value = req.get(2);
         int pxIdx = findStringIgnoreCase(req, "px", 3);
         if (pxIdx == -1) {
-            redisCore.set(key, value);
+            redisStringCore.set(key, value);
         } else {
-            redisCore.set(key, value, Long.parseLong(req.get(pxIdx + 1)));
+            redisStringCore.set(key, value, Long.parseLong(req.get(pxIdx + 1)));
         }
         RedisWriteProcessor.sendString(outputStream, "OK");
     }
 
-    private void handleEcho(List<String> req) throws IOException {
-        if (req.size() < 2) {
-            throw new IllegalArgumentException("No message received");
-        }
+    private void echo(List<String> req) throws IOException {
+        validateNumberOfArgs(req, 2);
         RedisWriteProcessor.sendBulkString(outputStream, Objects.toString(req.get(1), ""));
+    }
+
+    private Protocol.Command getCmd(List<String> req) {
+        if (req.isEmpty()) {
+            throw new IllegalArgumentException("Wrong number of arguments for command");
+        }
+        var command = req.getFirst();
+        return Optional.ofNullable(Protocol.Command.findCommand(command))
+                .orElseThrow(() -> new IllegalArgumentException("Invalid command received: " + command));
     }
 
     public int findStringIgnoreCase(List<String> list, String str, int startIdx) {
@@ -83,5 +91,11 @@ public class RedisHandler {
             }
         }
         return -1;
+    }
+
+    private void validateNumberOfArgs(List<String> req, int minSize) {
+        if (req.size() < minSize) {
+            throw new IllegalArgumentException("Wrong number of arguments for command");
+        }
     }
 }

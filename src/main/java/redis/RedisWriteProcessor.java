@@ -17,6 +17,10 @@ public class RedisWriteProcessor {
         sendMessage(outputStream, Protocol.DataType.SIMPLE_STRING.getPrefix() + message);
     }
 
+    public static void sendInt(OutputStream outputStream, int message) throws IOException {
+        sendMessage(outputStream, Protocol.DataType.INTEGER.getPrefix() + String.valueOf(message));
+    }
+
     public static void sendBulkString(OutputStream outputStream, String message) throws IOException {
         sendMessage(outputStream, Protocol.DataType.BULK_STRING.getPrefix() + String.valueOf(message.length()));
         sendMessage(outputStream, message);
