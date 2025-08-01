@@ -2,7 +2,6 @@ package redis.internal;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class RedisListCore {
@@ -13,12 +12,18 @@ public class RedisListCore {
     }
 
     public int rpush(String key, List<String> items) {
-        var list = Optional.ofNullable(get(key))
-                .map(ArrayList::new)
-                .orElseGet(ArrayList::new);
+        var list = new ArrayList<>(get(key));
         list.addAll(items);
         data.put(key, new RedisValue<>(list));
         return list.size();
+    }
+
+    public int lpush(String key, List<String> items) {
+        var updatedList = new ArrayList<>(items);
+        var list = get(key);
+        updatedList.addAll(list);
+        data.put(key, new RedisValue<>(updatedList));
+        return updatedList.size();
     }
 
     public List<String> get(String key) {
