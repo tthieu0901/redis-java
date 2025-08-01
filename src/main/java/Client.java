@@ -1,31 +1,54 @@
+import utils.SocketUtils;
+
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 
 public class Client {
     public static void main(String[] args) throws IOException {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress("localhost", 6379));
-            System.out.println("Connected to server");
-            OutputStream outputStream = socket.getOutputStream();
-            outputStream.write("PING\nPING\nPING\n".getBytes());
+        Client client = new Client();
+        client.sendString("PING");
+    }
 
-            InputStream inputStream = socket.getInputStream();
-            byte[] buffer = new byte[1024];
-            int bytesRead = inputStream.read(buffer);
-            while (bytesRead != -1) {
-                System.out.println(new String(buffer, 0, bytesRead));
-                bytesRead = inputStream.read(buffer);
-            }
+    public String sendString(String message) {
+        try (Socket socket = new Socket()) {
+            // Add connection timeout of 5 seconds
+            socket.connect(new InetSocketAddress("localhost", 6379), 5000);
+            socket.setSoTimeout(5000); // Add read timeout
+            System.out.println("Connected to server");
+
+            var resp = handle(message, socket);
+
             System.out.println("Disconnected from server");
-            inputStream.close();
-            outputStream.close();
-            System.out.println("Closing socket");
+            return resp;
         } catch (IOException e) {
             System.out.println("Could not connect to server");
-            throw e;
+            return null;
         }
     }
+
+//    public String sendList(List<String> messages) {
+//        try (Socket socket = new Socket()) {
+//            // Add connection timeout of 5 seconds
+//            socket.connect(new InetSocketAddress("localhost", 6379), 5000);
+//            socket.setSoTimeout(5000); // Add read timeout
+//            System.out.println("Connected to server");
+//
+//            var resp = handle(message, socket);
+//
+//            System.out.println("Disconnected from server");
+//            return resp;
+//        } catch (IOException e) {
+//            System.out.println("Could not connect to server");
+//            return null;
+//        }
+//    }
+
+    private static String handle(String message, Socket socket) throws IOException {
+        SocketUtils.sendString(socket, message);
+        var resp = SocketUtils.read(socket);
+        System.out.println(resp);
+        return resp;
+    }
+
 }
