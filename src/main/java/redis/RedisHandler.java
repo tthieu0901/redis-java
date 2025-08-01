@@ -41,9 +41,14 @@ public class RedisHandler {
     private void lpop(List<String> req) throws IOException {
         validateNumberOfArgs(req, 2);
         var key = req.get(1);
-        var nPop = req.size() < 3 ? 1 : Integer.parseInt(req.get(2));
-        var deleted = redisListCore.lpop(key, nPop);
-        RedisWriteProcessor.sendArray(outputStream, deleted);
+        if (req.size() == 2) {
+            var resp = redisListCore.lpop(key);
+            RedisWriteProcessor.sendBulkString(outputStream, resp);
+        } else {
+            var nPop = Integer.parseInt(req.get(2));
+            var deletedList = redisListCore.lpop(key, nPop);
+            RedisWriteProcessor.sendArray(outputStream, deletedList);
+        }
     }
 
     private void llen(List<String> req) throws IOException {

@@ -69,4 +69,14 @@ public class RedisListCore {
         data.put(key, new RedisValue<>(list.subList(nPop, list.size())));
         return deletedList;
     }
+
+    public String lpop(String key) {
+        var list = get(key);
+        if (list.isEmpty()) {
+            return null;
+        }
+        var deleted = list.removeFirst();
+        data.put(key, new RedisValue<>(list));
+        return deleted;
+    }
 }
