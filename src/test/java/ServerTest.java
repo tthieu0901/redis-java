@@ -84,7 +84,7 @@ class ServerTest {
         assertEquals("$12\r\nHello, world\r\n", message);
     }
 
-    // Somehow this test keep failing
+//    TODO: Somehow this test keep failing
 //    @Test
 //    void testServer_set() throws IOException, InterruptedException {
 //        var setMessage = client.sendArray(List.of("SET", "abc", "Hello, world"));
