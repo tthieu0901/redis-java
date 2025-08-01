@@ -134,7 +134,7 @@ class ServerTest {
     @Test
     void testServer_rpushThenLrange() throws IOException {
         var message = client.sendArray(List.of("RPUSH", "test_lrange", "a", "b", "c"));
-        assertEquals(":3\r\n", message);
+        TestHelper.expectInt(3, message);
 
         var resp1 = client.sendArray(List.of("LRANGE", "test_lrange", "0", "1"));
         TestHelper.expectArray(List.of("a", "b"), resp1);
@@ -149,4 +149,18 @@ class ServerTest {
         TestHelper.expectArray(List.of(), resp4);
     }
 
+    @Test
+    void testServer_rpushThenLrange_withNegativeIdx() throws IOException {
+        var message = client.sendArray(List.of("RPUSH", "test_lrange_neg", "a", "b", "c", "d", "e"));
+        TestHelper.expectInt(5, message);
+
+        var resp1 = client.sendArray(List.of("LRANGE", "test_lrange_neg", "-2", "-1"));
+        TestHelper.expectArray(List.of("d", "e"), resp1);
+
+        var resp2 = client.sendArray(List.of("LRANGE", "test_lrange_neg", "0", "-3"));
+        TestHelper.expectArray(List.of("a", "b", "c"), resp2);
+
+        var resp3 = client.sendArray(List.of("LRANGE", "test_lrange_neg", "2", "-1"));
+        TestHelper.expectArray(List.of("c", "d", "e"), resp3);
+    }
 }

@@ -35,10 +35,15 @@ public class RedisListCore {
     }
 
     public List<String> lrange(String key, int startIdx, int endIdx) {
-        if (startIdx > endIdx) {
+        if (endIdx >= 0 && startIdx > endIdx) {
             return List.of();
         }
         var list = get(key);
-        return list.subList(startIdx, Math.min(list.size(), endIdx + 1));
+        var start = (startIdx >= 0) ?  startIdx : Math.max(0, list.size() + startIdx);
+        var end = (endIdx >= 0) ? Math.min(list.size() - 1, endIdx): Math.max(0, list.size() + endIdx);
+        if (start > end) {
+            return List.of();
+        }
+        return list.subList(start, end + 1);
     }
 }
