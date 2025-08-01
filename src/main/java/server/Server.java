@@ -1,5 +1,8 @@
 package server;
 
+import utils.RedisReadProcessor;
+import utils.RedisWriteProcessor;
+
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -49,9 +52,8 @@ public class Server {
         try {
             System.out.println("Client connected: " + socket.getRemoteSocketAddress());
             while (running && !socket.isClosed()) {
-                String message = SocketUtils.read(socket);
-                message = message.replaceAll("\r\n", "");
-                SocketUtils.sendString(socket, message);
+                String message = String.valueOf(RedisReadProcessor.process(socket.getInputStream()));
+                RedisWriteProcessor.sendString(socket, message);
             }
         } catch (Exception e) {
             System.out.println("Client " + socket.getRemoteSocketAddress() + " disconnected");

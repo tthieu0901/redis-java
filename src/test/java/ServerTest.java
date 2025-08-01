@@ -45,6 +45,6 @@ class ServerTest {
     void testServerEcho() {
         Client client = new Client();
         var message = client.sendString("PING");
-        Assertions.assertEquals("PING\r\n", message);
+        Assertions.assertEquals("PING\r\n", message.getFirst());
     }
 }

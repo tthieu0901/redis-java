@@ -1,8 +1,10 @@
-import utils.SocketUtils;
+import utils.RedisReadProcessor;
+import utils.RedisWriteProcessor;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.util.List;
 
 public class Client {
     public static void main(String[] args) throws IOException {
@@ -10,7 +12,7 @@ public class Client {
         client.sendString("PING");
     }
 
-    public String sendString(String message) {
+    public List<Object> sendString(String message) {
         try (Socket socket = new Socket()) {
             // Add connection timeout of 5 seconds
             socket.connect(new InetSocketAddress("localhost", 6379), 5000);
@@ -44,11 +46,9 @@ public class Client {
 //        }
 //    }
 
-    private static String handle(String message, Socket socket) throws IOException {
-        SocketUtils.sendString(socket, message);
-        var resp = SocketUtils.read(socket);
-        System.out.println(resp);
-        return resp;
+    private static List<Object> handle(String message, Socket socket) throws IOException {
+        RedisWriteProcessor.sendString(socket, message);
+        return RedisReadProcessor.process(socket.getInputStream());
     }
 
 }
