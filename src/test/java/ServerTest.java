@@ -95,6 +95,6 @@ class ServerTest {
     }
 
     private static void assertMessage(String expected, String message) {
-        Assertions.assertEquals(expected, message.substring(0, expected.length()));
+        Assertions.assertEquals(expected, message);
     }
 }
