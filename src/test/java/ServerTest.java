@@ -54,7 +54,11 @@ class ServerTest {
     }
 
     @AfterAll
-    void tearDown() throws Exception {
+    void tearDown() {
+        stopServer();
+    }
+
+    private void stopServer() {
         if (server != null) {
             server.stopServer();
         }
@@ -73,57 +77,76 @@ class ServerTest {
     }
 
     @Test
-    void testServer_ping_pong() throws IOException, InterruptedException {
+    void testServer_ping_pong() throws IOException {
         var message = client.sendString("PING");
         assertEquals("+PONG\r\n", message);
+        TestHelper.expectSimpleString("PONG", message);
     }
 
     @Test
-    void testServer_echo() throws IOException, InterruptedException {
+    void testServer_echo() throws IOException {
         var message = client.sendArray(List.of("ECHO", "Hello, world"));
-        assertEquals("$12\r\nHello, world\r\n", message);
+        TestHelper.expectBulkString("Hello, world", message);
     }
 
-//    TODO: Somehow this test keep failing
-//    @Test
-//    void testServer_set() throws IOException, InterruptedException {
-//        var setMessage = client.sendArray(List.of("SET", "abc", "Hello, world"));
-//        assertEquals("+OK\r\n", setMessage);
-//    }
+    @Test
+    void testServer_set() throws IOException {
+        var setMessage = client.sendArray(List.of("SET", "abc", "Hello, world"));
+        assertEquals("+OK\r\n", setMessage);
+    }
 
     @Test
-    void testServer_setThenGet() throws IOException, InterruptedException {
+    void testServer_setThenGet() throws IOException {
         var setMessage = client.sendArray(List.of("SET", "test_set_then_get", "Hello, world"));
-        assertEquals("+OK\r\n", setMessage);
+        TestHelper.expectSimpleString("OK", setMessage);
 
         var getMessage = client.sendArray(List.of("GET", "test_set_then_get"));
-        assertEquals("$12\r\nHello, world\r\n", getMessage);
+        TestHelper.expectBulkString("Hello, world", getMessage);
     }
 
     @Test
-    void testServer_GetNotFound() throws IOException, InterruptedException {
+    void testServer_GetNotFound() throws IOException {
         var getMessage = client.sendArray(List.of("GET", "test_get_not_found"));
-        assertEquals("$-1\r\n", getMessage);
+        TestHelper.expectNull(getMessage);
     }
 
     @Test
     void testServer_SetWithExpiryTimeThenWaitAndGet() throws IOException, InterruptedException {
         var setMessage = client.sendArray(List.of("SET", "test_set_with_expiry_time", "Hello, world", "pX", "500"));
-        assertEquals("+OK\r\n", setMessage);
+        TestHelper.expectSimpleString("OK", setMessage);
 
         var getMessage = client.sendArray(List.of("GET", "test_set_with_expiry_time"));
-        assertEquals("$12\r\nHello, world\r\n", getMessage);
+        TestHelper.expectBulkString("Hello, world", getMessage);
 
         // Wait for expiry time
         Thread.sleep(700);
 
         var expiredMessage = client.sendArray(List.of("GET", "test_set_with_expiry_time"));
-        assertEquals("$-1\r\n", expiredMessage);
+        TestHelper.expectNull(expiredMessage);
     }
 
     @Test
-    void testServer_rpush() throws IOException, InterruptedException {
+    void testServer_rpush() throws IOException {
         var message = client.sendArray(List.of("RPUSH", "test_rpush", "Hello", "world"));
-        assertEquals(":2\r\n", message);
+        TestHelper.expectInt(2, message);
     }
+
+    @Test
+    void testServer_rpushThenLrange() throws IOException {
+        var message = client.sendArray(List.of("RPUSH", "test_lrange", "a", "b", "c"));
+        assertEquals(":3\r\n", message);
+
+        var resp1 = client.sendArray(List.of("LRANGE", "test_lrange", "0", "1"));
+        TestHelper.expectArray(List.of("a", "b"), resp1);
+
+        var resp2 = client.sendArray(List.of("LRANGE", "test_lrange", "1", "4"));
+        TestHelper.expectArray(List.of("b", "c"), resp2);
+
+        var resp3 = client.sendArray(List.of("LRANGE", "test_lrange", "3", "2"));
+        TestHelper.expectArray(List.of(), resp3);
+
+        var resp4 = client.sendArray(List.of("LRANGE", "test_lrange_not_found", "3", "2"));
+        TestHelper.expectArray(List.of(), resp4);
+    }
+
 }

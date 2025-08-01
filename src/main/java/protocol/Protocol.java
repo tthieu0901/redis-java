@@ -33,6 +33,7 @@ public class Protocol {
         GET,
         ECHO,
         RPUSH,
+        LRANGE,
         ;
 
         public static Command findCommand(String command) {

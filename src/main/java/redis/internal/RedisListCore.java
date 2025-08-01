@@ -33,4 +33,12 @@ public class RedisListCore {
         }
         return redisValue.getValue();
     }
+
+    public List<String> lrange(String key, int startIdx, int endIdx) {
+        if (startIdx > endIdx) {
+            return List.of();
+        }
+        var list = get(key);
+        return list.subList(startIdx, Math.min(list.size(), endIdx + 1));
+    }
 }
