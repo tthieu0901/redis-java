@@ -108,14 +108,14 @@ class ServerTest {
 
     @Test
     void testServer_SetWithExpiryTimeThenWaitAndGet() throws IOException, InterruptedException {
-        var setMessage = client.sendArray(List.of("SET", "test_set_with_expiry_time", "Hello, world", "pX", "200"));
+        var setMessage = client.sendArray(List.of("SET", "test_set_with_expiry_time", "Hello, world", "pX", "500"));
         assertEquals("+OK\r\n", setMessage);
 
         var getMessage = client.sendArray(List.of("GET", "test_set_with_expiry_time"));
         assertEquals("$12\r\nHello, world\r\n", getMessage);
 
         // Wait for expiry time
-        Thread.sleep(500);
+        Thread.sleep(700);
 
         var expiredMessage = client.sendArray(List.of("GET", "test_set_with_expiry_time"));
         assertEquals("$-1\r\n", expiredMessage);
