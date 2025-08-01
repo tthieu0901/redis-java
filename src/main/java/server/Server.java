@@ -1,22 +1,18 @@
 package server;
 
-import protocol.Protocol;
-import redis.RedisCore;
+import redis.RedisHandler;
 import redis.RedisReadProcessor;
-import redis.RedisWriteProcessor;
 import stream.RedisInputStream;
 
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 public class Server {
     private ServerSocket serverSocket;
     private volatile boolean running = true;
-    private final RedisCore redisCore = RedisCore.getInstance();
 
     public void startServer() {
         int port = 6379;
@@ -57,11 +53,12 @@ public class Server {
     private void handleClientSocket(Socket socket) {
         try {
             System.out.println("Client connected: " + socket.getRemoteSocketAddress());
+            RedisHandler handler = new RedisHandler();
             while (running && !socket.isClosed()) {
                 var inputStream = new RedisInputStream(socket.getInputStream());
                 if (inputStream.available() > 0) {
-                    List<Object> resp = RedisReadProcessor.read(inputStream);
-                    handleCommand(socket, resp);
+                    List<Object> req = RedisReadProcessor.read(inputStream);
+                    handler.handleCommand(socket, req);
                 } else {
                     Thread.sleep(10);
                 }
@@ -79,55 +76,4 @@ public class Server {
             }
         }
     }
-
-    private void handleCommand(Socket socket, List<Object> resp) throws IOException {
-        var outputStream = socket.getOutputStream();
-
-        if (resp.isEmpty()) {
-            throw new IllegalArgumentException("No command received");
-        }
-        var command = resp.getFirst();
-        if (command instanceof String) {
-            System.out.println("Received command: " + command);
-        } else {
-            System.out.println("Received invalid command: " + command);
-            throw new IllegalArgumentException("Invalid command received: " + command);
-        }
-        var cmd = Protocol.Command.findCommand(Objects.toString(command));
-        if (cmd == null) {
-            throw new IllegalArgumentException("Invalid command received: " + command);
-        }
-        switch (cmd) {
-            case PING -> RedisWriteProcessor.sendString(outputStream, "PONG");
-            case ECHO -> {
-                if (resp.size() < 2) {
-                    throw new IllegalArgumentException("No message received");
-                }
-                RedisWriteProcessor.sendBulkString(outputStream, Objects.toString(resp.get(1), ""));
-            }
-            case SET -> {
-                if (resp.size() < 3) {
-                    throw new IllegalArgumentException("No key or value received");
-                }
-                var key = Objects.toString(resp.get(1), "");
-                var value = Objects.toString(resp.get(2), "");
-                redisCore.set(key, value);
-                RedisWriteProcessor.sendString(outputStream, "OK");
-            }
-            case GET -> {
-                if (resp.size() < 2) {
-                    throw new IllegalArgumentException("No key received");
-                }
-                var key = Objects.toString(resp.get(1), "");
-                var value = redisCore.get(key);
-                if (value == null) {
-                    RedisWriteProcessor.sendNull(outputStream);
-                } else {
-                    RedisWriteProcessor.sendBulkString(outputStream, value);
-                }
-            }
-            default -> throw new IllegalArgumentException("Command not supported yet: " + command);
-        }
-    }
-
 }
