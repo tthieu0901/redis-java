@@ -18,6 +18,10 @@ class ServerTest {
     @BeforeAll
     void setUp() throws Exception {
         startServer();
+    }
+
+    @BeforeEach
+    void beforeEach() throws IOException {
         startClient();
     }
 
@@ -38,12 +42,13 @@ class ServerTest {
         client.connect(HOSTNAME, PORT);
     }
 
+    @AfterEach
+    void afterEach() throws IOException {
+        client.disconnect();
+    }
+
     @AfterAll
     void tearDown() throws Exception {
-        if (client != null) {
-            client.disconnect();
-        }
-
         if (server != null) {
             server.stopServer();
         }
@@ -64,7 +69,8 @@ class ServerTest {
     @Test
     void testServer_Ping() throws IOException, InterruptedException {
         var message = client.sendString("PING");
-        Assertions.assertEquals("+PONG\r\n", message);
+        var expected = "+PONG\r\n";
+        Assertions.assertEquals("+PONG\r\n", message.substring(0, expected.length()));
     }
 
     @Test

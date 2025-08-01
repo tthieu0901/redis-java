@@ -24,6 +24,7 @@ public class RedisReadProcessor extends RedisProcessor {
             throw new IOException("Invalid data type");
         }
         return switch (dataType) {
+            case SIMPLE_STRING -> List.of(readMessage(inputStream));
             case BULK_STRING -> List.of(readBulkString(inputStream));
             case ARRAY -> readArray(inputStream);
             default -> throw new IOException("Data type not supported for now: " + dataType.name());
