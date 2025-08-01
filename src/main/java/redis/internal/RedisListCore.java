@@ -52,7 +52,21 @@ public class RedisListCore {
         return list.subList(start, end + 1);
     }
 
-    public int llen(String key) {
+    public int size(String key) {
         return get(key).size();
+    }
+
+    public List<String> lpop(String key, int nPop) {
+        var list = get(key);
+        if (list.isEmpty()) {
+            return List.of();
+        }
+        if (nPop >= list.size()) {
+            data.remove(key);
+            return list;
+        }
+        var deletedList = list.subList(0, nPop);
+        data.put(key, new RedisValue<>(list.subList(nPop, list.size())));
+        return deletedList;
     }
 }

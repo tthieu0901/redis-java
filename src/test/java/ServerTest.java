@@ -177,4 +177,13 @@ class ServerTest {
         TestHelper.expectInt(3, client.sendArray(List.of("LPUSH", "test_llen", "a", "b", "c")));
         TestHelper.expectInt(3, client.sendArray(List.of("LLEN", "test_llen")));
     }
+
+    @Test
+    void testServer_lpop() throws IOException {
+        TestHelper.expectInt(5, client.sendArray(List.of("RPUSH", "test_lpop", "a", "b", "c", "d", "e")));
+        TestHelper.expectArray(List.of("a"), client.sendArray(List.of("LPOP", "test_lpop")));
+        TestHelper.expectArray(List.of("b", "c"), client.sendArray(List.of("LPOP", "test_lpop", "2")));
+        TestHelper.expectArray(List.of("d", "e"), client.sendArray(List.of("LRANGE", "test_lpop", "0", "-1")));
+
+    }
 }

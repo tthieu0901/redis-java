@@ -33,14 +33,23 @@ public class RedisHandler {
             case LPUSH -> lpush(req);
             case LRANGE -> lrange(req);
             case LLEN -> llen(req);
+            case LPOP -> lpop(req);
             default -> throw new IllegalArgumentException("Command not supported yet: " + cmd.name());
         }
+    }
+
+    private void lpop(List<String> req) throws IOException {
+        validateNumberOfArgs(req, 2);
+        var key = req.get(1);
+        var nPop = req.size() < 3 ? 1 : Integer.parseInt(req.get(2));
+        var deleted = redisListCore.lpop(key, nPop);
+        RedisWriteProcessor.sendArray(outputStream, deleted);
     }
 
     private void llen(List<String> req) throws IOException {
         validateNumberOfArgs(req, 2);
         var key = req.get(1);
-        var len = redisListCore.llen(key);
+        var len = redisListCore.size(key);
         RedisWriteProcessor.sendInt(outputStream, len);
     }
 
