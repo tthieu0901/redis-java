@@ -69,14 +69,32 @@ class ServerTest {
     @Test
     void testServer_Ping() throws IOException, InterruptedException {
         var message = client.sendString("PING");
-        var expected = "+PONG\r\n";
-        Assertions.assertEquals("+PONG\r\n", message.substring(0, expected.length()));
+        assertMessage("+PONG\r\n", message);
     }
 
     @Test
     void testServer_Echo() throws IOException, InterruptedException {
         var message = client.sendArray(List.of("ECHO", "Hello, world"));
-        var expected = "$12\r\nHello, world\r\n";
-        Assertions.assertEquals("$12\r\nHello, world\r\n", message.substring(0, expected.length()));
+        assertMessage("$12\r\nHello, world\r\n", message);
+    }
+
+
+    @Test
+    void testServer_SetThenGet() throws IOException, InterruptedException {
+        var setMessage = client.sendArray(List.of("SET", "Key Test", "Hello, world"));
+        assertMessage("+OK\r\n", setMessage);
+
+        var getMessage = client.sendArray(List.of("GET", "Key Test"));
+        assertMessage("$12\r\nHello, world\r\n", getMessage);
+    }
+
+    @Test
+    void testServer_GetNotFound() throws IOException, InterruptedException {
+        var getMessage = client.sendArray(List.of("GET", "Non-existing key"));
+        assertMessage("$-1\r\n", getMessage);
+    }
+
+    private static void assertMessage(String expected, String message) {
+        Assertions.assertEquals(expected, message.substring(0, expected.length()));
     }
 }

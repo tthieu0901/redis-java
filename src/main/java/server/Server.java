@@ -1,9 +1,10 @@
 package server;
 
 import protocol.Protocol;
+import redis.RedisCore;
+import redis.RedisReadProcessor;
+import redis.RedisWriteProcessor;
 import stream.RedisInputStream;
-import utils.RedisReadProcessor;
-import utils.RedisWriteProcessor;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -15,6 +16,7 @@ import java.util.concurrent.CompletableFuture;
 public class Server {
     private ServerSocket serverSocket;
     private volatile boolean running = true;
+    private final RedisCore redisCore = RedisCore.getInstance();
 
     public void startServer() {
         int port = 6379;
@@ -102,6 +104,27 @@ public class Server {
                     throw new IllegalArgumentException("No message received");
                 }
                 RedisWriteProcessor.sendBulkString(outputStream, Objects.toString(resp.get(1), ""));
+            }
+            case SET -> {
+                if (resp.size() < 3) {
+                    throw new IllegalArgumentException("No key or value received");
+                }
+                var key = Objects.toString(resp.get(1), "");
+                var value = Objects.toString(resp.get(2), "");
+                redisCore.set(key, value);
+                RedisWriteProcessor.sendString(outputStream, "OK");
+            }
+            case GET -> {
+                if (resp.size() < 2) {
+                    throw new IllegalArgumentException("No key received");
+                }
+                var key = Objects.toString(resp.get(1), "");
+                var value = redisCore.get(key);
+                if (value == null) {
+                    RedisWriteProcessor.sendNull(outputStream);
+                } else {
+                    RedisWriteProcessor.sendBulkString(outputStream, value);
+                }
             }
             default -> throw new IllegalArgumentException("Command not supported yet: " + command);
         }

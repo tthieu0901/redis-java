@@ -1,4 +1,4 @@
-package utils;
+package redis;
 
 import protocol.Protocol;
 
@@ -6,7 +6,13 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.List;
 
-public class RedisWriteProcessor extends RedisProcessor {
+public class RedisWriteProcessor {
+    public static final String CRLF = "\r\n";
+
+    public static void sendNull(OutputStream outputStream) throws IOException {
+        sendMessage(outputStream, "$-1");
+    }
+
     public static void sendString(OutputStream outputStream, String message) throws IOException {
         sendMessage(outputStream, Protocol.DataType.SIMPLE_STRING.getPrefix() + message);
     }

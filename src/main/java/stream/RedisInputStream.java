@@ -7,9 +7,9 @@ import java.io.InputStream;
 public class RedisInputStream extends FilterInputStream {
     private static final int DEFAULT_BUFFER_SIZE = 1024;
 
-
-    private final byte[] buffer;
+    private byte[] buffer;
     private int offset = DEFAULT_BUFFER_SIZE;
+    private int bytesInBuffer = 0;
 
     private final InputStream inputStream;
 
@@ -49,19 +49,30 @@ public class RedisInputStream extends FilterInputStream {
     }
 
     private void fillBuffer() throws IOException {
-        if (offset < DEFAULT_BUFFER_SIZE) {
+        if (offset < bytesInBuffer) {
             return;
         }
-        int bytesRead = inputStream.read(buffer);
+        bytesInBuffer = inputStream.read(buffer);
         offset = 0;
-        if (bytesRead == -1) {
+        if (bytesInBuffer == -1) {
             throw new IllegalStateException("End of stream reached");
         }
     }
 
     public String readAll() throws IOException {
-        fillBuffer();
-        return new String(buffer, 0, buffer.length);
+        StringBuilder result = new StringBuilder();
+
+        // Read all available data
+        while (inputStream.available() > 0 || offset < bytesInBuffer) {
+            if (offset >= bytesInBuffer) {
+                fillBuffer();
+            }
+            if (bytesInBuffer > 0) {
+                result.append((char) buffer[offset++]);
+            }
+        }
+
+        return result.toString();
     }
 
     public void waitTillAvailable(int timeoutMs) throws IOException, InterruptedException {

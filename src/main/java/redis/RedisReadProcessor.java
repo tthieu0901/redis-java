@@ -1,4 +1,4 @@
-package utils;
+package redis;
 
 import protocol.Protocol;
 import stream.RedisInputStream;
@@ -7,7 +7,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class RedisReadProcessor extends RedisProcessor {
+public class RedisReadProcessor {
 
     public static String readMessage(RedisInputStream inputStream) throws IOException {
         return inputStream.readLine();

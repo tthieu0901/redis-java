@@ -1,5 +1,5 @@
 import stream.RedisInputStream;
-import utils.RedisWriteProcessor;
+import redis.RedisWriteProcessor;
 
 import java.io.IOException;
 import java.io.OutputStream;
