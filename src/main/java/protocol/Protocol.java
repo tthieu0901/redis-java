@@ -1,26 +1,29 @@
 package protocol;
 
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-
 import java.util.Arrays;
 
 public class Protocol {
 
-    @Getter
-    @RequiredArgsConstructor
     public enum DataType {
         SIMPLE_STRING('+'),
         ERROR('-'),
         INTEGER(':'),
-        BULK_STRING( '$'),
+        BULK_STRING('$'),
         ARRAY('*'),
         ;
 
         private final char prefix;
 
+        DataType(char c) {
+            prefix = c;
+        }
+
         public static DataType findDataTypeByPrefix(char prefix) {
             return Arrays.stream(DataType.values()).filter(dt -> dt.getPrefix() == prefix).findFirst().orElse(null);
+        }
+
+        public char getPrefix() {
+            return this.prefix;
         }
     }
 
