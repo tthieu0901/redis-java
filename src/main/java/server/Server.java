@@ -1,11 +1,15 @@
 package server;
 
+import protocol.Protocol;
+import stream.RedisInputStream;
 import utils.RedisReadProcessor;
 import utils.RedisWriteProcessor;
 
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 public class Server {
@@ -52,8 +56,13 @@ public class Server {
         try {
             System.out.println("Client connected: " + socket.getRemoteSocketAddress());
             while (running && !socket.isClosed()) {
-                String message = String.valueOf(RedisReadProcessor.process(socket.getInputStream()));
-                RedisWriteProcessor.sendString(socket, message);
+                var inputStream = new RedisInputStream(socket.getInputStream());
+                if (inputStream.available() > 0) {
+                    List<Object> resp = RedisReadProcessor.read(inputStream);
+                    handleCommand(socket, resp);
+                } else {
+                    Thread.sleep(10);
+                }
             }
         } catch (Exception e) {
             System.out.println("Client " + socket.getRemoteSocketAddress() + " disconnected");
@@ -68,4 +77,34 @@ public class Server {
             }
         }
     }
+
+    private void handleCommand(Socket socket, List<Object> resp) throws IOException {
+        var outputStream = socket.getOutputStream();
+
+        if (resp.isEmpty()) {
+            throw new IllegalArgumentException("No command received");
+        }
+        var command = resp.getFirst();
+        if (command instanceof String) {
+            System.out.println("Received command: " + command);
+        } else {
+            System.out.println("Received invalid command: " + command);
+            throw new IllegalArgumentException("Invalid command received: " + command);
+        }
+        var cmd = Protocol.Command.findCommand(Objects.toString(command));
+        if (cmd == null) {
+            throw new IllegalArgumentException("Invalid command received: " + command);
+        }
+        switch (cmd) {
+            case PING -> RedisWriteProcessor.sendString(outputStream, "PONG");
+            case ECHO -> {
+                if (resp.size() < 2) {
+                    throw new IllegalArgumentException("No message received");
+                }
+                RedisWriteProcessor.sendBulkString(outputStream, Objects.toString(resp.get(1), ""));
+            }
+            default -> throw new IllegalArgumentException("Command not supported yet: " + command);
+        }
+    }
+
 }

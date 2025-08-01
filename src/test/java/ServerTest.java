@@ -1,16 +1,27 @@
 import org.junit.jupiter.api.*;
 import server.Server;
 
+import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ServerTest {
+    private static final String HOSTNAME = "localhost";
+    private static final int PORT = 6379;
+
     private Server server;
+    private Client client;
     private CompletableFuture<Void> serverTask;
 
     @BeforeAll
     void setUp() throws Exception {
+        startServer();
+        startClient();
+    }
+
+    private void startServer() throws InterruptedException {
         server = new Server();
 
         // Start server in background thread
@@ -22,8 +33,17 @@ class ServerTest {
         Thread.sleep(500);
     }
 
+    private void startClient() throws IOException {
+        client = new Client();
+        client.connect(HOSTNAME, PORT);
+    }
+
     @AfterAll
     void tearDown() throws Exception {
+        if (client != null) {
+            client.disconnect();
+        }
+
         if (server != null) {
             server.stopServer();
         }
@@ -42,9 +62,15 @@ class ServerTest {
     }
 
     @Test
-    void testServerEcho() {
-        Client client = new Client();
+    void testServer_Ping() throws IOException, InterruptedException {
         var message = client.sendString("PING");
-        Assertions.assertEquals("PING\r\n", message.getFirst());
+        Assertions.assertEquals("+PONG\r\n", message);
+    }
+
+    @Test
+    void testServer_Echo() throws IOException, InterruptedException {
+        var message = client.sendArray(List.of("ECHO", "Hello, world"));
+        var expected = "$12\r\nHello, world\r\n";
+        Assertions.assertEquals("$12\r\nHello, world\r\n", message.substring(0, expected.length()));
     }
 }
