@@ -53,12 +53,12 @@ public class Server {
     private void handleClientSocket(Socket socket) {
         try {
             System.out.println("Client connected: " + socket.getRemoteSocketAddress());
-            RedisHandler handler = new RedisHandler();
+            RedisHandler handler = new RedisHandler(socket.getOutputStream());
             while (running && !socket.isClosed()) {
                 var inputStream = new RedisInputStream(socket.getInputStream());
                 if (inputStream.available() > 0) {
                     List<Object> req = RedisReadProcessor.read(inputStream);
-                    handler.handleCommand(socket, req);
+                    handler.handleCommand(req);
                 } else {
                     Thread.sleep(10);
                 }

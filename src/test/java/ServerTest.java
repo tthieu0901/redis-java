@@ -94,6 +94,17 @@ class ServerTest {
         assertMessage("$-1\r\n", getMessage);
     }
 
+    @Test
+    void testServer_SetWithExpiryTimeThenWaitAndGet() throws IOException, InterruptedException {
+        var setMessage = client.sendArray(List.of("SET", "Key Test", "Hello, world", "pX", "100"));
+        assertMessage("+OK\r\n", setMessage);
+
+        Thread.sleep(200);
+
+        var getMessage = client.sendArray(List.of("GET", "Key Test"));
+        assertMessage("$-1\r\n", getMessage);
+    }
+
     private static void assertMessage(String expected, String message) {
         Assertions.assertEquals(expected, message);
     }
