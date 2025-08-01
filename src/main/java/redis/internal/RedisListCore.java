@@ -19,7 +19,7 @@ public class RedisListCore {
     }
 
     public int lpush(String key, List<String> items) {
-        var updatedList = new ArrayList<>(items);
+        var updatedList = new ArrayList<>(items.reversed());
         var list = get(key);
         updatedList.addAll(list);
         data.put(key, new RedisValue<>(updatedList));

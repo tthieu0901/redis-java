@@ -105,13 +105,13 @@ class ServerTest {
     }
 
     @Test
-    void testServer_GetNotFound() throws IOException {
+    void testServer_getNotFound() throws IOException {
         var getMessage = client.sendArray(List.of("GET", "test_get_not_found"));
         TestHelper.expectNull(getMessage);
     }
 
     @Test
-    void testServer_SetWithExpiryTimeThenWaitAndGet() throws IOException, InterruptedException {
+    void testServer_setWithExpiryTimeThenWaitAndGet() throws IOException, InterruptedException {
         var setMessage = client.sendArray(List.of("SET", "test_set_with_expiry_time", "Hello, world", "pX", "500"));
         TestHelper.expectSimpleString("OK", setMessage);
 
@@ -166,10 +166,9 @@ class ServerTest {
 
     @Test
     void testServer_lpushThenLrange() throws IOException {
-        TestHelper.expectInt(3, client.sendArray(List.of("RPUSH", "test_lpush", "c", "d", "e")));
-        TestHelper.expectInt(5, client.sendArray(List.of("LPUSH", "test_lpush", "a", "b")));
+        TestHelper.expectInt(3, client.sendArray(List.of("LPUSH", "test_lpush", "a", "b", "c")));
 
         var resp1 = client.sendArray(List.of("LRANGE", "test_lpush", "0", "-1"));
-        TestHelper.expectArray(List.of("a", "b", "c", "d", "e"), resp1);
+        TestHelper.expectArray(List.of("c", "b", "a"), resp1);
     }
 }
