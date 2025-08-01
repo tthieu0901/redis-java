@@ -32,8 +32,16 @@ public class RedisHandler {
             case RPUSH -> rpush(req);
             case LPUSH -> lpush(req);
             case LRANGE -> lrange(req);
+            case LLEN -> llen(req);
             default -> throw new IllegalArgumentException("Command not supported yet: " + cmd.name());
         }
+    }
+
+    private void llen(List<String> req) throws IOException {
+        validateNumberOfArgs(req, 2);
+        var key = req.get(1);
+        var len = redisListCore.llen(key);
+        RedisWriteProcessor.sendInt(outputStream, len);
     }
 
     private void lrange(List<String> req) throws IOException {

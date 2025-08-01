@@ -51,4 +51,8 @@ public class RedisListCore {
         }
         return list.subList(start, end + 1);
     }
+
+    public int llen(String key) {
+        return get(key).size();
+    }
 }

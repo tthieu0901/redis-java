@@ -171,4 +171,10 @@ class ServerTest {
         var resp1 = client.sendArray(List.of("LRANGE", "test_lpush", "0", "-1"));
         TestHelper.expectArray(List.of("c", "b", "a"), resp1);
     }
+
+    @Test
+    void testServer_llen() throws IOException {
+        TestHelper.expectInt(3, client.sendArray(List.of("LPUSH", "test_llen", "a", "b", "c")));
+        TestHelper.expectInt(3, client.sendArray(List.of("LLEN", "test_llen")));
+    }
 }
