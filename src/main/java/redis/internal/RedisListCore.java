@@ -3,11 +3,14 @@ package redis.internal;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class RedisListCore {
     private static final ConcurrentHashMap<String, RedisValue<List<String>>> DATA = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, ConcurrentLinkedQueue<String>> REQUEST_QUEUE = new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<String, Object> LOCK = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, ReentrantLock> LOCKS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Condition> CONDITIONS = new ConcurrentHashMap<>();
 
     public static RedisListCore getInstance() {
         return new RedisListCore();
@@ -21,34 +24,46 @@ public class RedisListCore {
      * <p>
      * TODO: Try to use Event Loop in the future
      */
-    private static Object getLock(String key) {
-        return LOCK.computeIfAbsent(key, _ -> new Object());
+    private ReentrantLock getLock(String key) {
+        return LOCKS.computeIfAbsent(key, _ -> new ReentrantLock());
+    }
+    
+    private Condition getCondition(String key) {
+        return CONDITIONS.computeIfAbsent(key, _ -> getLock(key).newCondition());
     }
 
     public int rpush(String key, List<String> items) {
-        synchronized (getLock(key)) {
+        ReentrantLock lock = getLock(key);
+        lock.lock();
+        try {
             var list = getValueInternal(key);
             list.addAll(items);
-
             DATA.put(key, new RedisValue<>(list));
-
-            getLock(key).notifyAll(); // notify other on-waiting processes
-
+            
+            // Notify all waiting blpop operations
+            getCondition(key).signalAll();
+            
             return list.size();
+        } finally {
+            lock.unlock();
         }
     }
 
     public int lpush(String key, List<String> items) {
-        synchronized (getLock(key)) {
+        ReentrantLock lock = getLock(key);
+        lock.lock();
+        try {
             var updatedList = new ArrayList<>(items.reversed());
             var list = getValueInternal(key);
             updatedList.addAll(list);
-
             DATA.put(key, new RedisValue<>(updatedList));
-
-            getLock(key).notifyAll(); // notify other blocking blpop
-
+            
+            // Notify all waiting blpop operations
+            getCondition(key).signalAll();
+            
             return updatedList.size();
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -79,9 +94,13 @@ public class RedisListCore {
      * Other get-then-act operations still need to be wrapped by synchronized to avoid race condition
      */
     public List<String> getValue(String key) {
-        synchronized (getLock(key)) {
+        ReentrantLock lock = getLock(key);
+        lock.lock();
+        try {
             var snapShot = getValueInternal(key);
-            return Collections.unmodifiableList(snapShot); // Collections.unmodifiableList restricts add/remove operations but inside list can still be modified
+            return Collections.unmodifiableList(snapShot);
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -129,38 +148,52 @@ public class RedisListCore {
     }
 
     public String blpop(String key, int timeout) {
-        synchronized (getLock(key)) {
+        var queue = REQUEST_QUEUE.computeIfAbsent(key, _ -> new ConcurrentLinkedQueue<>());
+        var requestId = UUID.randomUUID().toString();
+        
+        ReentrantLock lock = getLock(key);
+        Condition condition = getCondition(key);
+        
+        lock.lock();
+        try {
+            // First check if data is immediately available
             var list = getValueInternal(key);
             if (!list.isEmpty()) {
                 return removeFist(key, list);
             }
-        }
-
-        var queue = REQUEST_QUEUE.computeIfAbsent(key, _ -> new ConcurrentLinkedQueue<>());
-
-        var requestId = UUID.randomUUID().toString();
-        queue.add(requestId);
-        try {
-            if (timeout == 0) { // wait indefinitely
-                while (true) {
-                    synchronized (getLock(key)) {
-                        if (!Objects.equals(queue.peek(), requestId)) {
-                            continue;
-                        }
-
-                        var list = getValueInternal(key);
-                        if (!list.isEmpty()) {
-                            return removeFist(key, list);
-                        }
-                        getLock(key).wait(50); // Wait for some time to avoid busy waiting (100% CPU run all the time)
-                    }
+            
+            // Add to queue
+            queue.add(requestId);
+            
+            // Wait for data
+            while (true) {
+                // Check if we're first in queue
+                if (!Objects.equals(queue.peek(), requestId)) {
+                    condition.await();
+                    continue;
+                }
+                
+                // We're first in queue, check for data
+                list = getValueInternal(key);
+                if (!list.isEmpty()) {
+                    queue.remove(requestId);
+                    return removeFist(key, list);
+                }
+                
+                // No data available, wait for notification
+                if (timeout == 0) {
+                    condition.await();
+                } else {
+                    // Handle timeout case if needed
+                    return null;
                 }
             }
-            return null;
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         } finally {
             queue.remove(requestId);
+            lock.unlock();
         }
     }
 

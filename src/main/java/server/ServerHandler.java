@@ -44,7 +44,6 @@ class ServerHandler {
             } catch (Exception e) {
                 System.out.println("Error closing client socket: " + e.getMessage());
             }
-            System.out.println("Client handler finished for " + socket.getRemoteSocketAddress());
         }
     }
 

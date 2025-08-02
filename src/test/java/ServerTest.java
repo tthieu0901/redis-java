@@ -189,14 +189,13 @@ class ServerTest {
                 c -> c.sendArray(List.of("BLPOP", "test_blpop", "0")
                 ));
 
-        Thread.sleep(200); // wait for the request from client 2 to come first
 
         var taskClient3 = TestHelper.runOnAnotherClient(
                 HOSTNAME, PORT,
                 c -> c.sendArray(List.of("BLPOP", "test_blpop", "0")
                 ));
 
-        Thread.sleep(200); // wait for the request from client 3 to come
+        Thread.sleep(10); // wait for the request from client 3 to come
 
         TestHelper.expectInt(1, client.sendArray(List.of("RPUSH", "test_blpop", "a")));
         TestHelper.expectArray(List.of("test_blpop", "a"), taskClient2.get());
