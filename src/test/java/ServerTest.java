@@ -210,7 +210,17 @@ class ServerTest {
     }
 
     @Test
-    void testServer_blpopWithTimeout() {
+    void testServer_blpopWithTimeout() throws ExecutionException, InterruptedException {
         TestHelper.expectNull(client.sendArray(List.of("BLPOP", "test_blpop_timeout", "0.1")));
+
+        var taskClient2 = TestHelper.runOnAnotherClient(
+                HOSTNAME, PORT,
+                c -> c.sendArray(List.of("BLPOP", "test_blpop_timeout", "0.5")
+                ));
+
+        Thread.sleep(10); // wait for the request
+
+        TestHelper.expectInt(1, client.sendArray(List.of("RPUSH", "test_blpop_timeout", "a")));
+        TestHelper.expectArray(List.of("test_blpop_timeout", "a"), taskClient2.get());
     }
 }

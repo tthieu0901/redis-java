@@ -185,23 +185,29 @@ public class RedisListCore {
                 // We're first in queue, check for data
                 var value = getValueInternal(key);
                 if (!value.isEmpty()) {
-                    return removeFist(key, value);
+                    String result = removeFist(key, value);
+
+                    // Signal others to check their position
+                    condition.signalAll();
+                    return result;
                 }
 
                 // No data available, wait for notification
                 if ("0".equals(timeoutSeconds)) {
                     condition.await();
                 } else {
-                    // Handle timeout case
                     if (!condition.await((long) (Double.parseDouble(timeoutSeconds) * 1000), TimeUnit.MILLISECONDS)) {
                         return null;
                     }
                 }
             }
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         } finally {
+            // Cleanup: remove from queue if still there
             queue.remove(requestId);
+            condition.signalAll();
             lock.unlock();
         }
     }
