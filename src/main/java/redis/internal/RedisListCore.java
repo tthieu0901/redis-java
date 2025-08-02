@@ -185,11 +185,7 @@ public class RedisListCore {
                 // We're first in queue, check for data
                 var value = getValueInternal(key);
                 if (!value.isEmpty()) {
-                    String result = removeFist(key, value);
-
-                    // Signal others to check their position
-                    condition.signalAll();
-                    return result;
+                    return removeFist(key, value);
                 }
 
                 // No data available, wait for notification
@@ -207,7 +203,6 @@ public class RedisListCore {
         } finally {
             // Cleanup: remove from queue if still there
             queue.remove(requestId);
-            condition.signalAll();
             lock.unlock();
         }
     }
