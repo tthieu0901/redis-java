@@ -1,9 +1,9 @@
 import org.junit.jupiter.api.*;
 import server.Server;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -23,11 +23,18 @@ class ServerTest {
     }
 
     @BeforeEach
-    void beforeEach() throws IOException, InterruptedException {
-        startClient();
-        // Clear any pending operations from previous tests
-        Thread.sleep(150);
-        // Drain any residual data in the input stream
+    void beforeEach() {
+        client = TestHelper.startClient(HOSTNAME, PORT);
+    }
+
+    @AfterEach
+    void afterEach() {
+        TestHelper.stopClient(client);
+    }
+
+    @AfterAll
+    void tearDown() {
+        stopServer();
     }
 
     private void startServer() throws InterruptedException {
@@ -40,22 +47,6 @@ class ServerTest {
 
         // Give server a moment to start up
         Thread.sleep(500);
-    }
-
-    private void startClient() throws IOException {
-        client = new Client();
-        client.connect(HOSTNAME, PORT);
-    }
-
-    @AfterEach
-    void afterEach() throws IOException, InterruptedException {
-        client.disconnect();
-        Thread.sleep(150);
-    }
-
-    @AfterAll
-    void tearDown() {
-        stopServer();
     }
 
     private void stopServer() {
@@ -77,26 +68,26 @@ class ServerTest {
     }
 
     @Test
-    void testServer_ping_pong() throws IOException {
+    void testServer_ping_pong() {
         var message = client.sendString("PING");
         assertEquals("+PONG\r\n", message);
         TestHelper.expectSimpleString("PONG", message);
     }
 
     @Test
-    void testServer_echo() throws IOException {
+    void testServer_echo() {
         var message = client.sendArray(List.of("ECHO", "Hello, world"));
         TestHelper.expectBulkString("Hello, world", message);
     }
 
     @Test
-    void testServer_set() throws IOException {
+    void testServer_set() {
         var setMessage = client.sendArray(List.of("SET", "abc", "Hello, world"));
         assertEquals("+OK\r\n", setMessage);
     }
 
     @Test
-    void testServer_setThenGet() throws IOException {
+    void testServer_setThenGet() {
         var setMessage = client.sendArray(List.of("SET", "test_set_then_get", "Hello, world"));
         TestHelper.expectSimpleString("OK", setMessage);
 
@@ -105,13 +96,13 @@ class ServerTest {
     }
 
     @Test
-    void testServer_getNotFound() throws IOException {
+    void testServer_getNotFound() {
         var getMessage = client.sendArray(List.of("GET", "test_get_not_found"));
         TestHelper.expectNull(getMessage);
     }
 
     @Test
-    void testServer_setWithExpiryTimeThenWaitAndGet() throws IOException, InterruptedException {
+    void testServer_setWithExpiryTimeThenWaitAndGet() throws InterruptedException {
         var setMessage = client.sendArray(List.of("SET", "test_set_with_expiry_time", "Hello, world", "pX", "500"));
         TestHelper.expectSimpleString("OK", setMessage);
 
@@ -126,13 +117,13 @@ class ServerTest {
     }
 
     @Test
-    void testServer_rpush() throws IOException {
+    void testServer_rpush() {
         var message = client.sendArray(List.of("RPUSH", "test_rpush", "Hello", "world"));
         TestHelper.expectInt(2, message);
     }
 
     @Test
-    void testServer_rpushThenLrange() throws IOException {
+    void testServer_rpushThenLrange() {
         var message = client.sendArray(List.of("RPUSH", "test_lrange", "a", "b", "c"));
         TestHelper.expectInt(3, message);
 
@@ -150,7 +141,7 @@ class ServerTest {
     }
 
     @Test
-    void testServer_rpushThenLrange_withNegativeIdx() throws IOException {
+    void testServer_rpushThenLrange_withNegativeIdx() {
         var message = client.sendArray(List.of("RPUSH", "test_lrange_neg", "a", "b", "c", "d", "e"));
         TestHelper.expectInt(5, message);
 
@@ -165,7 +156,7 @@ class ServerTest {
     }
 
     @Test
-    void testServer_lpushThenLrange() throws IOException {
+    void testServer_lpushThenLrange() {
         TestHelper.expectInt(3, client.sendArray(List.of("LPUSH", "test_lpush", "a", "b", "c")));
 
         var resp1 = client.sendArray(List.of("LRANGE", "test_lpush", "0", "-1"));
@@ -173,17 +164,49 @@ class ServerTest {
     }
 
     @Test
-    void testServer_llen() throws IOException {
+    void testServer_llen() {
         TestHelper.expectInt(3, client.sendArray(List.of("LPUSH", "test_llen", "a", "b", "c")));
         TestHelper.expectInt(3, client.sendArray(List.of("LLEN", "test_llen")));
     }
 
     @Test
-    void testServer_lpop() throws IOException {
+    void testServer_lpop() {
         TestHelper.expectInt(5, client.sendArray(List.of("RPUSH", "test_lpop", "a", "b", "c", "d", "e")));
         TestHelper.expectBulkString("a", client.sendArray(List.of("LPOP", "test_lpop")));
         TestHelper.expectArray(List.of("b", "c"), client.sendArray(List.of("LPOP", "test_lpop", "2")));
         TestHelper.expectArray(List.of("d", "e"), client.sendArray(List.of("LRANGE", "test_lpop", "0", "-1")));
 
+        TestHelper.expectArray(List.of("d", "e"), client.sendArray(List.of("LPOP", "test_lpop", "2")));
+        TestHelper.expectArray(List.of(), client.sendArray(List.of("LRANGE", "test_lpop", "0", "-1")));
+
+        TestHelper.expectNull(client.sendArray(List.of("LPOP", "test_lpop")));
+    }
+
+    @Test
+    void testServer_blpop() throws ExecutionException, InterruptedException {
+        var taskClient2 = TestHelper.runOnAnotherClient(
+                HOSTNAME, PORT,
+                c -> c.sendArray(List.of("BLPOP", "test_blpop", "0")
+                ));
+
+        Thread.sleep(200); // wait for the request from client 2 to come first
+
+        var taskClient3 = TestHelper.runOnAnotherClient(
+                HOSTNAME, PORT,
+                c -> c.sendArray(List.of("BLPOP", "test_blpop", "0")
+                ));
+
+        Thread.sleep(200); // wait for the request from client 3 to come
+
+        TestHelper.expectInt(1, client.sendArray(List.of("RPUSH", "test_blpop", "a")));
+        TestHelper.expectArray(List.of("test_blpop", "a"), taskClient2.get());
+
+        TestHelper.expectInt(0, client.sendArray(List.of("LLEN", "test_blpop")));
+
+
+        Thread.sleep(200); // wait for the second push
+
+        TestHelper.expectInt(1, client.sendArray(List.of("RPUSH", "test_blpop", "b")));
+        TestHelper.expectArray(List.of("test_blpop", "b"), taskClient3.get());
     }
 }

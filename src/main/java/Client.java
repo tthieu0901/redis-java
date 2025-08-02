@@ -32,17 +32,25 @@ public class Client {
         System.out.println("Disconnected from server");
     }
 
-    public String sendString(String message) throws IOException {
-        RedisWriteProcessor.sendString(outputStream, message);
-        return inputStream.readAll();
+    public String sendString(String message) {
+        try {
+            RedisWriteProcessor.sendString(outputStream, message);
+            return inputStream.readAll();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    public String sendArray(List<String> messages) throws IOException {
-        RedisWriteProcessor.sendArray(outputStream, messages);
-        return inputStream.readAll();
+    public String sendArray(List<String> messages) {
+        try {
+            RedisWriteProcessor.sendArray(outputStream, messages);
+            return inputStream.readAll();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    public static void main(String[] args) throws IOException, InterruptedException {
+    public static void main(String[] args) throws IOException {
         Client client = new Client();
         client.connect("localhost", 6379);
         // var message = client.sendArray(List.of("ECHO", "Hello, world"));

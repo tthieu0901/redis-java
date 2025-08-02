@@ -40,24 +40,40 @@ public class RedisHandler {
         }
     }
 
-    private void blpop(List<String> req) {
+    private void blpop(List<String> req) throws IOException {
         validateNumberOfArgs(req, 2);
-//        var key = req.get(1);
-//        var timeout = req.getLast();
-//        var resp = redisListCore.blpop(key, timeout);
-//        RedisWriteProcessor.sendBulkString(outputStream, resp);
+        var key = req.get(1);
+        var timeout = req.getLast();
+        var resp = redisListCore.blpop(key, Integer.parseInt(timeout));
+        if (resp == null) {
+            RedisWriteProcessor.sendNull(outputStream);
+        } else {
+            RedisWriteProcessor.sendArray(outputStream, List.of(key, resp));
+        }
     }
 
     private void lpop(List<String> req) throws IOException {
         validateNumberOfArgs(req, 2);
         var key = req.get(1);
         if (req.size() == 2) {
-            var resp = redisListCore.lpop(key);
-            RedisWriteProcessor.sendBulkString(outputStream, resp);
+            lpopSingleElement(key);
         } else {
-            var nPop = Integer.parseInt(req.get(2));
-            var deletedList = redisListCore.lpop(key, nPop);
-            RedisWriteProcessor.sendArray(outputStream, deletedList);
+            lpopMultipleElements(req, key);
+        }
+    }
+
+    private void lpopMultipleElements(List<String> req, String key) throws IOException {
+        var nPop = Integer.parseInt(req.get(2));
+        var deletedList = redisListCore.lpop(key, nPop);
+        RedisWriteProcessor.sendArray(outputStream, deletedList);
+    }
+
+    private void lpopSingleElement(String key) throws IOException {
+        var resp = redisListCore.lpop(key);
+        if (resp == null) {
+            RedisWriteProcessor.sendNull(outputStream);
+        } else {
+            RedisWriteProcessor.sendBulkString(outputStream, resp);
         }
     }
 
