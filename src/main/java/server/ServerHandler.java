@@ -35,7 +35,7 @@ class ServerHandler {
                 }
             }
         } catch (Exception e) {
-            System.out.println("Client " + socket.getRemoteSocketAddress() + " error: " + e.getMessage());
+            System.out.println("Client " + socket.getRemoteSocketAddress() + " error: " + e.fillInStackTrace());
         } finally {
             try {
                 if (socket != null && !socket.isClosed()) {
