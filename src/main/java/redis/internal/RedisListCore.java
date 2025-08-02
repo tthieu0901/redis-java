@@ -3,6 +3,7 @@ package redis.internal;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -17,7 +18,7 @@ public class RedisListCore {
     }
 
     /**
-     * Since we use the same state for multiple thread, we must use synchronized to avoid race condition!
+     * Since we use the same state for multiple thread, we must use lock to avoid race condition!
      * For better performance, we lock based on key.
      * <p>
      * Redis use Event Loop so they don't have to deal with this :(
@@ -27,7 +28,7 @@ public class RedisListCore {
     private ReentrantLock getLock(String key) {
         return LOCKS.computeIfAbsent(key, _ -> new ReentrantLock());
     }
-    
+
     private Condition getCondition(String key) {
         return CONDITIONS.computeIfAbsent(key, _ -> getLock(key).newCondition());
     }
@@ -39,10 +40,10 @@ public class RedisListCore {
             var list = getValueInternal(key);
             list.addAll(items);
             DATA.put(key, new RedisValue<>(list));
-            
+
             // Notify all waiting blpop operations
             getCondition(key).signalAll();
-            
+
             return list.size();
         } finally {
             lock.unlock();
@@ -57,10 +58,10 @@ public class RedisListCore {
             var list = getValueInternal(key);
             updatedList.addAll(list);
             DATA.put(key, new RedisValue<>(updatedList));
-            
+
             // Notify all waiting blpop operations
             getCondition(key).signalAll();
-            
+
             return updatedList.size();
         } finally {
             lock.unlock();
@@ -87,11 +88,11 @@ public class RedisListCore {
 
 
     /**
-     * getValue return an unmodified snapshot of data wrapped by synchronized keyword.
+     * getValue return an unmodified snapshot of data being locked.
      * <p>
      * This helps other read-only operations being thread safe (might stale if that operation takes too long to perform, but this is acceptable)
      * <p>
-     * Other get-then-act operations still need to be wrapped by synchronized to avoid race condition
+     * Other get-then-act operations still need to be locked to avoid race condition
      */
     public List<String> getValue(String key) {
         ReentrantLock lock = getLock(key);
@@ -125,7 +126,9 @@ public class RedisListCore {
     }
 
     public List<String> lpop(String key, int nPop) {
-        synchronized (getLock(key)) {
+        ReentrantLock lock = getLock(key);
+        lock.lock();
+        try {
             var list = getValueInternal(key);
             if (list.isEmpty()) {
                 return List.of();
@@ -137,23 +140,29 @@ public class RedisListCore {
             var deletedList = list.subList(0, nPop);
             DATA.put(key, new RedisValue<>(list.subList(nPop, list.size())));
             return deletedList;
+        } finally {
+            lock.unlock();
         }
     }
 
     public String lpop(String key) {
-        synchronized (getLock(key)) {
+        ReentrantLock lock = getLock(key);
+        lock.lock();
+        try {
             var list = getValueInternal(key);
             return removeFist(key, list);
+        } finally {
+            lock.unlock();
         }
     }
 
-    public String blpop(String key, int timeout) {
+    public String blpop(String key, double timeoutSeconds) {
         var queue = REQUEST_QUEUE.computeIfAbsent(key, _ -> new ConcurrentLinkedQueue<>());
         var requestId = UUID.randomUUID().toString();
-        
+
         ReentrantLock lock = getLock(key);
         Condition condition = getCondition(key);
-        
+
         lock.lock();
         try {
             // First check if data is immediately available
@@ -161,10 +170,10 @@ public class RedisListCore {
             if (!list.isEmpty()) {
                 return removeFist(key, list);
             }
-            
+
             // Add to queue
             queue.add(requestId);
-            
+
             // Wait for data
             while (true) {
                 // Check if we're first in queue
@@ -172,20 +181,21 @@ public class RedisListCore {
                     condition.await();
                     continue;
                 }
-                
+
                 // We're first in queue, check for data
                 list = getValueInternal(key);
                 if (!list.isEmpty()) {
-                    queue.remove(requestId);
                     return removeFist(key, list);
                 }
-                
+
                 // No data available, wait for notification
-                if (timeout == 0) {
+                if (timeoutSeconds == 0) {
                     condition.await();
                 } else {
-                    // Handle timeout case if needed
-                    return null;
+                    // Handle timeout case
+                    if (!condition.await((long) (timeoutSeconds * 1000), TimeUnit.MILLISECONDS)) {
+                        return null;
+                    }
                 }
             }
         } catch (InterruptedException e) {

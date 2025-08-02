@@ -208,4 +208,9 @@ class ServerTest {
         TestHelper.expectInt(1, client.sendArray(List.of("RPUSH", "test_blpop", "b")));
         TestHelper.expectArray(List.of("test_blpop", "b"), taskClient3.get());
     }
+
+    @Test
+    void testServer_blpopWithTimeout() {
+        TestHelper.expectNull(client.sendArray(List.of("BLPOP", "test_blpop", "0.1")));
+    }
 }
