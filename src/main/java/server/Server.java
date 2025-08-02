@@ -1,14 +1,9 @@
 package server;
 
-import redis.RedisHandler;
-import redis.RedisReadProcessor;
-import stream.RedisInputStream;
-
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -31,7 +26,10 @@ public class Server {
             while (running && !serverSocket.isClosed()) {
                 try {
                     Socket clientSocket = serverSocket.accept();
-                    executorService.submit(() -> handleClientSocket(clientSocket));
+                    executorService.submit(() -> {
+                        ServerHandler serverHandler = new ServerHandler();
+                        serverHandler.handleClientSocket(this, clientSocket);
+                    });
                 } catch (SocketTimeoutException e) {
                     // Normal timeout, continue loop
                     continue;
@@ -67,43 +65,7 @@ public class Server {
         }
     }
 
-
-    private void handleClientSocket(Socket socket) {
-        try {
-            System.out.println("Client connected: " + socket.getRemoteSocketAddress());
-            socket.setSoTimeout(5000); // Set read timeout
-
-            RedisHandler handler = new RedisHandler(socket.getOutputStream());
-            var inputStream = new RedisInputStream(socket.getInputStream());
-
-            while (running && !socket.isClosed() && socket.isConnected()) {
-                try {
-                    if (inputStream.available() > 0) {
-                        List<Object> req = RedisReadProcessor.read(inputStream);
-                        handler.handleCommand(req);
-                    } else {
-                        Thread.sleep(50); // Increased sleep time
-                    }
-                } catch (IOException e) {
-                    // Client disconnected or timeout
-                    break;
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-        } catch (Exception e) {
-            System.out.println("Client " + socket.getRemoteSocketAddress() + " error: " + e.getMessage());
-        } finally {
-            try {
-                if (socket != null && !socket.isClosed()) {
-                    socket.close();
-                }
-            } catch (Exception e) {
-                System.out.println("Error closing client socket: " + e.getMessage());
-            }
-            System.out.println("Client handler finished for " + socket.getRemoteSocketAddress());
-        }
+    boolean isRunning() {
+        return this.running;
     }
-
 }

@@ -1,4 +1,4 @@
-package redis;
+package redis.processor;
 
 import protocol.Protocol;
 
@@ -7,10 +7,11 @@ import java.io.OutputStream;
 import java.util.List;
 
 public class RedisWriteProcessor {
-    public static final String CRLF = "\r\n";
+    protected static final String CRLF = "\r\n";
+    private static final String NULL_VALUE = "$-1";
 
     public static void sendNull(OutputStream outputStream) throws IOException {
-        sendMessage(outputStream, "$-1");
+        sendMessage(outputStream, NULL_VALUE);
     }
 
     public static void sendString(OutputStream outputStream, String message) throws IOException {

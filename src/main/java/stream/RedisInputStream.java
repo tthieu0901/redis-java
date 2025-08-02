@@ -48,6 +48,29 @@ public class RedisInputStream extends FilterInputStream {
         return line.toString();
     }
 
+    public String readLine(int maxLen) throws IOException {
+        StringBuilder line = new StringBuilder();
+        boolean foundCR = false;
+        while (true) {
+            if (line.length() > maxLen) {
+                throw new IOException("Too many bytes read");
+            }
+            int ch = readByte();
+            if (ch == '\r') {
+                foundCR = true;
+            } else if (ch == '\n' && foundCR) {
+                break;
+            } else {
+                if (foundCR) {
+                    line.append('\r');
+                    foundCR = false;
+                }
+                line.append((char) ch);
+            }
+        }
+        return line.toString();
+    }
+
     private void fillBuffer() throws IOException {
         if (offset < bytesInBuffer) {
             return;

@@ -3,6 +3,7 @@ package redis;
 import protocol.Protocol;
 import redis.internal.RedisListCore;
 import redis.internal.RedisStringCore;
+import redis.processor.RedisWriteProcessor;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -34,8 +35,17 @@ public class RedisHandler {
             case LRANGE -> lrange(req);
             case LLEN -> llen(req);
             case LPOP -> lpop(req);
+            case BLPOP -> blpop(req);
             default -> throw new IllegalArgumentException("Command not supported yet: " + cmd.name());
         }
+    }
+
+    private void blpop(List<String> req) {
+        validateNumberOfArgs(req, 2);
+//        var key = req.get(1);
+//        var timeout = req.getLast();
+//        var resp = redisListCore.blpop(key, timeout);
+//        RedisWriteProcessor.sendBulkString(outputStream, resp);
     }
 
     private void lpop(List<String> req) throws IOException {
@@ -117,9 +127,7 @@ public class RedisHandler {
     }
 
     private Protocol.Command getCmd(List<String> req) {
-        if (req.isEmpty()) {
-            throw new IllegalArgumentException("Wrong number of arguments for command");
-        }
+        validateNumberOfArgs(req, 1);
         var command = req.getFirst();
         return Optional.ofNullable(Protocol.Command.findCommand(command))
                 .orElseThrow(() -> new IllegalArgumentException("Invalid command received: " + command));

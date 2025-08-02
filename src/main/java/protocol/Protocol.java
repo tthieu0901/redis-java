@@ -34,7 +34,10 @@ public class Protocol {
         ECHO,
         RPUSH,
         LRANGE,
-        LPUSH, LLEN, LPOP;
+        LPUSH,
+        LLEN,
+        LPOP,
+        BLPOP;
 
         public static Command findCommand(String command) {
             return Arrays.stream(Command.values()).filter(cmd -> cmd.name().equalsIgnoreCase(command)).findFirst().orElse(null);

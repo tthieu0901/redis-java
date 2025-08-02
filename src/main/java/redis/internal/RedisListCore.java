@@ -79,4 +79,12 @@ public class RedisListCore {
         data.put(key, new RedisValue<>(list));
         return deleted;
     }
+
+    public String blpop(String key, String timeout) {
+        var list = get(key);
+        if (list != null && !list.isEmpty()) {
+            return lpop(key);
+        }
+        return null;
+    }
 }

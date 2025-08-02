@@ -1,4 +1,4 @@
-package redis;
+package redis.processor;
 
 import protocol.Protocol;
 import stream.RedisInputStream;
@@ -11,6 +11,10 @@ public class RedisReadProcessor {
 
     public static String readMessage(RedisInputStream inputStream) throws IOException {
         return inputStream.readLine();
+    }
+
+    public static String readMessage(RedisInputStream inputStream, int maxLen) throws IOException {
+        return inputStream.readLine(maxLen);
     }
 
     private static char readFirstByte(RedisInputStream inputStream) throws IOException {
@@ -41,7 +45,7 @@ public class RedisReadProcessor {
     }
 
     private static String readBulkString(RedisInputStream inputStream) throws IOException {
-        var len = Integer.parseInt(readMessage(inputStream)); // for now, this is unnecessary but will change later
-        return readMessage(inputStream);
+        var maxLen = Integer.parseInt(readMessage(inputStream));
+        return readMessage(inputStream, maxLen);
     }
 }
