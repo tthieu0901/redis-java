@@ -32,10 +32,7 @@ public class RedisListCore {
 
             DATA.put(key, new RedisValue<>(list));
 
-            var queue = REQUEST_QUEUE.get(key);
-            if (queue != null && !queue.isEmpty()) {
-                queue.notifyAll(); // notify other on-waiting processes
-            }
+            getLock(key).notifyAll(); // notify other on-waiting processes
 
             return list.size();
         }
@@ -137,31 +134,33 @@ public class RedisListCore {
             if (!list.isEmpty()) {
                 return removeFist(key, list);
             }
-            var queue = REQUEST_QUEUE.computeIfAbsent(key, _ -> new ConcurrentLinkedQueue<>());
+        }
 
-            var requestId = UUID.randomUUID().toString();
-            queue.add(requestId);
-            try {
-                if (timeout == 0) { // wait indefinitely
-                    while (true) {
+        var queue = REQUEST_QUEUE.computeIfAbsent(key, _ -> new ConcurrentLinkedQueue<>());
+
+        var requestId = UUID.randomUUID().toString();
+        queue.add(requestId);
+        try {
+            if (timeout == 0) { // wait indefinitely
+                while (true) {
+                    synchronized (getLock(key)) {
                         if (!Objects.equals(queue.peek(), requestId)) {
                             continue;
                         }
 
-                        list = getValueInternal(key);
+                        var list = getValueInternal(key);
                         if (!list.isEmpty()) {
                             return removeFist(key, list);
                         }
-
                         getLock(key).wait(50); // Wait for some time to avoid busy waiting (100% CPU run all the time)
                     }
                 }
-                return null;
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            } finally {
-                queue.remove(requestId);
             }
+            return null;
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } finally {
+            queue.remove(requestId);
         }
     }
 
