@@ -156,7 +156,7 @@ public class RedisListCore {
         }
     }
 
-    public String blpop(String key, double timeoutSeconds) {
+    public String blpop(String key, String timeoutSeconds) {
         var queue = REQUEST_QUEUE.computeIfAbsent(key, _ -> new ConcurrentLinkedQueue<>());
         var requestId = UUID.randomUUID().toString();
 
@@ -183,23 +183,22 @@ public class RedisListCore {
                 }
 
                 // We're first in queue, check for data
-                list = getValueInternal(key);
-                if (!list.isEmpty()) {
-                    return removeFist(key, list);
+                var value = getValueInternal(key);
+                if (!value.isEmpty()) {
+                    return removeFist(key, value);
                 }
 
                 // No data available, wait for notification
-                if (Double.compare(timeoutSeconds, 0) == 0) {
+                if ("0".equals(timeoutSeconds)) {
                     condition.await();
                 } else {
                     // Handle timeout case
-                    if (!condition.await((long) (timeoutSeconds * 1000), TimeUnit.MILLISECONDS)) {
+                    if (!condition.await((long) (Double.parseDouble(timeoutSeconds) * 1000), TimeUnit.MILLISECONDS)) {
                         return null;
                     }
                 }
             }
         } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         } finally {
             queue.remove(requestId);

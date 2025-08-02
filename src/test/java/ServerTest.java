@@ -211,6 +211,6 @@ class ServerTest {
 
     @Test
     void testServer_blpopWithTimeout() {
-        TestHelper.expectNull(client.sendArray(List.of("BLPOP", "test_blpop", "0.1")));
+        TestHelper.expectNull(client.sendArray(List.of("BLPOP", "test_blpop_timeout", "0.1")));
     }
 }

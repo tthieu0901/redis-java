@@ -44,7 +44,7 @@ public class RedisHandler {
         validateNumberOfArgs(req, 2);
         var key = req.get(1);
         var timeout = req.getLast();
-        var resp = redisListCore.blpop(key, Double.parseDouble(timeout));
+        var resp = redisListCore.blpop(key, timeout);
         if (resp == null) {
             RedisWriteProcessor.sendNull(outputStream);
         } else {
