@@ -189,7 +189,7 @@ public class RedisListCore {
                 }
 
                 // No data available, wait for notification
-                if (timeoutSeconds == 0) {
+                if (Double.compare(timeoutSeconds, 0) == 0) {
                     condition.await();
                 } else {
                     // Handle timeout case
