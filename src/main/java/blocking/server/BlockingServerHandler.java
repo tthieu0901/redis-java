@@ -1,6 +1,6 @@
-package server;
+package blocking.server;
 
-import redis.RedisHandler;
+import blocking.redis.internal.BlockingRedisHandler;
 import redis.processor.RedisReadProcessor;
 import stream.RedisInputStream;
 
@@ -8,14 +8,15 @@ import java.io.IOException;
 import java.net.Socket;
 import java.util.List;
 
-class ServerHandler {
+@Deprecated
+class BlockingServerHandler {
 
-    void handleClientSocket(Server server, Socket socket) {
+    void handleClientSocket(BlockingServer server, Socket socket) {
         try {
             System.out.println("Client connected: " + socket.getRemoteSocketAddress());
             socket.setSoTimeout(5000); // Set read timeout
 
-            RedisHandler handler = new RedisHandler(socket.getOutputStream());
+            var handler = new BlockingRedisHandler(socket.getOutputStream());
             var inputStream = new RedisInputStream(socket.getInputStream());
 
             while (server.isRunning() && !socket.isClosed() && socket.isConnected()) {

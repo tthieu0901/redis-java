@@ -1,5 +1,6 @@
 import org.junit.jupiter.api.*;
 import server.Server;
+import server.nonblocking.NonBlockingServer;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -38,7 +39,7 @@ class ServerTest {
     }
 
     private void startServer() throws InterruptedException {
-        server = new Server();
+        server = new NonBlockingServer(PORT);
 
         // Start server in background thread
         serverTask = CompletableFuture.runAsync(() -> {
@@ -60,7 +61,7 @@ class ServerTest {
                 // The task might throw an exception on shutdown, which is expected
                 serverTask.exceptionally(ex -> null).get(2, TimeUnit.SECONDS);
             } catch (Exception e) {
-                System.out.println("server.Server shutdown exception: " + e.getMessage());
+                System.out.println("Server shutdown exception: " + e.getMessage());
                 // Force cancel if it's still running
                 serverTask.cancel(true);
             }

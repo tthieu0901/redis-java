@@ -1,71 +1,7 @@
 package server;
 
-import java.io.IOException;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.SocketTimeoutException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+public interface Server {
+    void startServer();
 
-public class Server {
-    private ServerSocket serverSocket;
-    private volatile boolean running = true;
-    private ExecutorService executorService;
-
-    public void startServer() {
-        int port = 6379;
-        executorService = Executors.newCachedThreadPool(); // Better thread management
-
-        try {
-            serverSocket = new ServerSocket(port);
-            serverSocket.setReuseAddress(true);
-            serverSocket.setSoTimeout(1000); // Add timeout to accept() calls
-
-            running = true;
-            while (running && !serverSocket.isClosed()) {
-                try {
-                    Socket clientSocket = serverSocket.accept();
-                    executorService.submit(() -> {
-                        ServerHandler serverHandler = new ServerHandler();
-                        serverHandler.handleClientSocket(this, clientSocket);
-                    });
-                } catch (SocketTimeoutException e) {
-                    // Normal timeout, continue loop
-                    continue;
-                } catch (IOException e) {
-                    if (!running) {
-                        break;
-                    }
-                    throw e;
-                }
-            }
-        } catch (Exception e) {
-            if (running) { // Only log if not shutting down
-                System.out.println("Server exception: " + e.getMessage());
-            }
-        }
-    }
-
-    public void stopServer() {
-        running = false;
-        try {
-            if (serverSocket != null && !serverSocket.isClosed()) {
-                serverSocket.close();
-            }
-
-            if (executorService != null) {
-                executorService.shutdown();
-                if (!executorService.awaitTermination(2, TimeUnit.SECONDS)) {
-                    executorService.shutdownNow();
-                }
-            }
-        } catch (Exception e) {
-            System.out.println("Error stopping server: " + e.getMessage());
-        }
-    }
-
-    boolean isRunning() {
-        return this.running;
-    }
+    void stopServer();
 }

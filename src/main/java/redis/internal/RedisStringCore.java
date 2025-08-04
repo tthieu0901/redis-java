@@ -5,8 +5,13 @@ import java.util.concurrent.ConcurrentHashMap;
 public class RedisStringCore {
     private static final ConcurrentHashMap<String, RedisValue<String>> DATA = new ConcurrentHashMap<>();
 
+    private static final RedisStringCore INSTANCE = new RedisStringCore();
+
+    private RedisStringCore() {
+    }
+
     public static RedisStringCore getInstance() {
-        return new RedisStringCore();
+        return INSTANCE;
     }
 
     public void set(String key, String value) {
