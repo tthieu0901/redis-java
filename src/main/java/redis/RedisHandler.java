@@ -3,23 +3,23 @@ package redis;
 import protocol.Protocol;
 import redis.internal.NonBlockingRedisListCore;
 import redis.internal.RedisListCore;
-import redis.internal.RedisStringCore;
+import redis.internal.NonBlockingRedisStringCore;
 import redis.processor.RedisWriteProcessor;
+import stream.Writer;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
 public class RedisHandler {
-    private final RedisStringCore redisStringCore;
+    private final NonBlockingRedisStringCore redisStringCore;
     private final RedisListCore redisListCore;
-    private final OutputStream outputStream;
+    private final Writer writer;
 
-    public RedisHandler(OutputStream outputStream) {
-        this.outputStream = outputStream;
-        this.redisStringCore = RedisStringCore.getInstance();
+    public RedisHandler(Writer writer) {
+        this.writer = writer;
+        this.redisStringCore = NonBlockingRedisStringCore.getInstance();
         this.redisListCore = NonBlockingRedisListCore.getInstance();
     }
 
@@ -47,9 +47,9 @@ public class RedisHandler {
         var timeout = req.getLast();
         var resp = redisListCore.blpop(key, timeout);
         if (resp == null) {
-            RedisWriteProcessor.sendNull(outputStream);
+            RedisWriteProcessor.sendNull(writer);
         } else {
-            RedisWriteProcessor.sendArray(outputStream, List.of(key, resp));
+            RedisWriteProcessor.sendArray(writer, List.of(key, resp));
         }
     }
 
@@ -66,15 +66,15 @@ public class RedisHandler {
     private void lpopMultipleElements(List<String> req, String key) throws IOException {
         var nPop = Integer.parseInt(req.get(2));
         var deletedList = redisListCore.lpop(key, nPop);
-        RedisWriteProcessor.sendArray(outputStream, deletedList);
+        RedisWriteProcessor.sendArray(writer, deletedList);
     }
 
     private void lpopSingleElement(String key) throws IOException {
         var resp = redisListCore.lpop(key);
         if (resp == null) {
-            RedisWriteProcessor.sendNull(outputStream);
+            RedisWriteProcessor.sendNull(writer);
         } else {
-            RedisWriteProcessor.sendBulkString(outputStream, resp);
+            RedisWriteProcessor.sendBulkString(writer, resp);
         }
     }
 
@@ -82,7 +82,7 @@ public class RedisHandler {
         validateNumberOfArgs(req, 2);
         var key = req.get(1);
         var len = redisListCore.size(key);
-        RedisWriteProcessor.sendInt(outputStream, len);
+        RedisWriteProcessor.sendInt(writer, len);
     }
 
     private void lrange(List<String> req) throws IOException {
@@ -91,7 +91,7 @@ public class RedisHandler {
         var startIdx = Integer.parseInt(req.get(2));
         var endIdx = Integer.parseInt(req.get(3));
         var resp = redisListCore.lrange(key, startIdx, endIdx);
-        RedisWriteProcessor.sendArray(outputStream, resp);
+        RedisWriteProcessor.sendArray(writer, resp);
     }
 
     private void lpush(List<String> req) throws IOException {
@@ -99,7 +99,7 @@ public class RedisHandler {
         var key = req.get(1);
         var items = req.subList(2, req.size());
         var len = redisListCore.lpush(key, items);
-        RedisWriteProcessor.sendInt(outputStream, len);
+        RedisWriteProcessor.sendInt(writer, len);
     }
 
     private void rpush(List<String> req) throws IOException {
@@ -107,11 +107,11 @@ public class RedisHandler {
         var key = req.get(1);
         var items = req.subList(2, req.size());
         var len = redisListCore.rpush(key, items);
-        RedisWriteProcessor.sendInt(outputStream, len);
+        RedisWriteProcessor.sendInt(writer, len);
     }
 
     private void ping() throws IOException {
-        RedisWriteProcessor.sendString(outputStream, "PONG");
+        RedisWriteProcessor.sendString(writer, "PONG");
     }
 
     private void get(List<String> req) throws IOException {
@@ -119,9 +119,9 @@ public class RedisHandler {
         var key = req.get(1);
         var value = redisStringCore.get(key);
         if (value == null) {
-            RedisWriteProcessor.sendNull(outputStream);
+            RedisWriteProcessor.sendNull(writer);
         } else {
-            RedisWriteProcessor.sendBulkString(outputStream, value);
+            RedisWriteProcessor.sendBulkString(writer, value);
         }
     }
 
@@ -135,12 +135,12 @@ public class RedisHandler {
         } else {
             redisStringCore.set(key, value, Long.parseLong(req.get(pxIdx + 1)));
         }
-        RedisWriteProcessor.sendString(outputStream, "OK");
+        RedisWriteProcessor.sendString(writer, "OK");
     }
 
     private void echo(List<String> req) throws IOException {
         validateNumberOfArgs(req, 2);
-        RedisWriteProcessor.sendBulkString(outputStream, Objects.toString(req.get(1), ""));
+        RedisWriteProcessor.sendBulkString(writer, Objects.toString(req.get(1), ""));
     }
 
     private Protocol.Command getCmd(List<String> req) {

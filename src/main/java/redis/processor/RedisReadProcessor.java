@@ -1,7 +1,7 @@
 package redis.processor;
 
 import protocol.Protocol;
-import stream.RedisInputStream;
+import stream.Reader;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -9,43 +9,43 @@ import java.util.List;
 
 public class RedisReadProcessor {
 
-    public static String readMessage(RedisInputStream inputStream) throws IOException {
-        return inputStream.readLine();
+    public static String readMessage(Reader reader) throws IOException {
+        return reader.readLine();
     }
 
-    public static String readMessage(RedisInputStream inputStream, int maxLen) throws IOException {
-        return inputStream.readLine(maxLen);
+    public static String readMessage(Reader reader, int maxLen) throws IOException {
+        return reader.readLine(maxLen);
     }
 
-    private static char readFirstByte(RedisInputStream inputStream) throws IOException {
-        return (char) inputStream.readByte();
+    private static char readFirstByte(Reader reader) throws IOException {
+        return (char) reader.readByte();
     }
 
-    public static List<Object> read(RedisInputStream inputStream) throws IOException {
-        var firstChar = readFirstByte(inputStream);
+    public static List<Object> read(Reader reader) throws IOException {
+        var firstChar = readFirstByte(reader);
         var dataType = Protocol.DataType.findDataTypeByPrefix(firstChar);
         if (dataType == null) {
             throw new IOException("Invalid data type");
         }
         return switch (dataType) {
-            case SIMPLE_STRING -> List.of(readMessage(inputStream));
-            case BULK_STRING -> List.of(readBulkString(inputStream));
-            case ARRAY -> readArray(inputStream);
+            case SIMPLE_STRING -> List.of(readMessage(reader));
+            case BULK_STRING -> List.of(readBulkString(reader));
+            case ARRAY -> readArray(reader);
             default -> throw new IOException("Data type not supported for now: " + dataType.name());
         };
     }
 
-    private static List<Object> readArray(RedisInputStream inputStream) throws IOException {
-        var arrLen = Integer.parseInt(readMessage(inputStream));
+    private static List<Object> readArray(Reader reader) throws IOException {
+        var arrLen = Integer.parseInt(readMessage(reader));
         var arr = new ArrayList<>();
         for (int i = 0; i < arrLen; i++) {
-            arr.addAll(read(inputStream));
+            arr.addAll(read(reader));
         }
         return arr;
     }
 
-    private static String readBulkString(RedisInputStream inputStream) throws IOException {
-        var maxLen = Integer.parseInt(readMessage(inputStream));
-        return readMessage(inputStream, maxLen);
+    private static String readBulkString(Reader reader) throws IOException {
+        var maxLen = Integer.parseInt(readMessage(reader));
+        return readMessage(reader, maxLen);
     }
 }

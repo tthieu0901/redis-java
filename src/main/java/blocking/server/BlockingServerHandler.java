@@ -3,6 +3,7 @@ package blocking.server;
 import blocking.redis.internal.BlockingRedisHandler;
 import redis.processor.RedisReadProcessor;
 import stream.RedisInputStream;
+import stream.RedisOutputStream;
 
 import java.io.IOException;
 import java.net.Socket;
@@ -16,14 +17,17 @@ class BlockingServerHandler {
             System.out.println("Client connected: " + socket.getRemoteSocketAddress());
             socket.setSoTimeout(5000); // Set read timeout
 
-            var handler = new BlockingRedisHandler(socket.getOutputStream());
+            var outputStream = new RedisOutputStream(socket.getOutputStream());
             var inputStream = new RedisInputStream(socket.getInputStream());
+
+            var handler = new BlockingRedisHandler(outputStream);
 
             while (server.isRunning() && !socket.isClosed() && socket.isConnected()) {
                 try {
                     if (inputStream.available() > 0) {
                         List<Object> req = RedisReadProcessor.read(inputStream);
                         handler.handleCommand(req);
+                        outputStream.flush();
                     } else {
                         Thread.sleep(50); // Increased sleep time
                     }

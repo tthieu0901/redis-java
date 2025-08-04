@@ -1,32 +1,31 @@
 package stream;
 
-import java.io.FilterInputStream;
 import java.io.IOException;
-import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.channels.ReadableByteChannel;
 
-public class RedisInputStream extends FilterInputStream implements Reader {
+public class BufferReader implements Reader {
+
     private static final int DEFAULT_BUFFER_SIZE = 1024;
 
-    private byte[] buffer;
-    private int offset = DEFAULT_BUFFER_SIZE;
-    private int bytesInBuffer = 0;
+    private final ByteBuffer buffer;
+    private final ReadableByteChannel channel;
 
-    private final InputStream inputStream;
-
-    public RedisInputStream(InputStream inputStream) {
-        super(inputStream);
-        this.inputStream = inputStream;
-        this.buffer = new byte[DEFAULT_BUFFER_SIZE];
+    public BufferReader(ReadableByteChannel channel) {
+        this.channel = channel;
+        this.buffer = ByteBuffer.allocate(DEFAULT_BUFFER_SIZE);
+        buffer.limit(0); // empty initially
     }
 
+    @Override
     public void close() throws IOException {
-        inputStream.close();
+        channel.close();
     }
 
     @Override
     public int readByte() throws IOException {
         fillBuffer();
-        return buffer[offset++];
+        return buffer.get() & 0xFF;
     }
 
     @Override
@@ -74,64 +73,55 @@ public class RedisInputStream extends FilterInputStream implements Reader {
         return line.toString();
     }
 
-    private void fillBuffer() throws IOException {
-        if (offset < bytesInBuffer) {
-            return;
-        }
-        bytesInBuffer = inputStream.read(buffer);
-        offset = 0;
-        if (bytesInBuffer == -1) {
-            throw new IllegalStateException("End of stream reached");
-        }
-    }
-
     public String readAll() throws IOException {
         StringBuilder result = new StringBuilder();
 
-        // First, ensure we have some data
+        // First fill buffer with some data
         fillBuffer();
 
-        // Read all available data with retries
         int emptyReads = 0;
-        while (emptyReads < 3) { // Allow up to 3 consecutive empty reads
+        while (emptyReads < 3) {
             boolean readSomething = false;
 
-            // Read from current buffer
-            while (offset < bytesInBuffer) {
-                result.append((char) buffer[offset++]);
+            // Drain current buffer
+            while (buffer.hasRemaining()) {
+                result.append((char) buffer.get());
                 readSomething = true;
             }
 
-            // Try to read more data
-            if (inputStream.available() > 0) {
-                fillBuffer();
+            // Try to read more from channel
+            buffer.clear();
+            int bytesRead = channel.read(buffer);
+            if (bytesRead > 0) {
+                buffer.flip();
                 readSomething = true;
             }
 
             if (!readSomething) {
                 emptyReads++;
                 try {
-                    Thread.sleep(50); // Wait a bit for more data
+                    Thread.sleep(50);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
                 }
             } else {
-                emptyReads = 0; // Reset counter if we read something
+                emptyReads = 0;
             }
         }
 
         return result.toString();
     }
 
-    public void waitTillAvailable(int timeoutMs) throws IOException, InterruptedException {
-        long startTime = System.currentTimeMillis();
-
-        while (inputStream.available() == 0) {
-            if (System.currentTimeMillis() - startTime > timeoutMs) {
-                throw new IOException("Timeout waiting for data");
-            }
-            Thread.sleep(100);
+    private void fillBuffer() throws IOException {
+        if (buffer.hasRemaining()) {
+            return;
         }
+        buffer.clear();
+        int bytesRead = channel.read(buffer);
+        if (bytesRead == -1) {
+            throw new IllegalStateException("End of stream reached");
+        }
+        buffer.flip();
     }
 }

@@ -39,7 +39,7 @@ class ServerTest {
     }
 
     private void startServer() throws InterruptedException {
-        server = new NonBlockingServer(PORT);
+        server = new NonBlockingServer(HOSTNAME, PORT);
 
         // Start server in background thread
         serverTask = CompletableFuture.runAsync(() -> {

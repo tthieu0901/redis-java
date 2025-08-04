@@ -1,8 +1,10 @@
-import stream.RedisInputStream;
 import redis.processor.RedisWriteProcessor;
+import stream.Reader;
+import stream.RedisInputStream;
+import stream.RedisOutputStream;
+import stream.Writer;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.List;
@@ -10,8 +12,8 @@ import java.util.List;
 public class Client {
     private static final int TIMEOUT = 5000;
     private Socket socket;
-    private RedisInputStream inputStream;
-    private OutputStream outputStream;
+    private Reader inputStream;
+    private Writer outputStream;
 
     public void connect(String hostName, int port) throws IOException {
         socket = new Socket();
@@ -20,7 +22,7 @@ public class Client {
         socket.setSoTimeout(TIMEOUT); // Add read timeout
         System.out.println("Connected to server");
 
-        outputStream = socket.getOutputStream();
+        outputStream = new RedisOutputStream(socket.getOutputStream());
         inputStream = new RedisInputStream(socket.getInputStream());
 
     }
@@ -35,6 +37,7 @@ public class Client {
     public String sendString(String message) {
         try {
             RedisWriteProcessor.sendString(outputStream, message);
+            outputStream.flush();
             return inputStream.readAll();
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -44,6 +47,7 @@ public class Client {
     public String sendArray(List<String> messages) {
         try {
             RedisWriteProcessor.sendArray(outputStream, messages);
+            outputStream.flush();
             return inputStream.readAll();
         } catch (IOException e) {
             throw new RuntimeException(e);

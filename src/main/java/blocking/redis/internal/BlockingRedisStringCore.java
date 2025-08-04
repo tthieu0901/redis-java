@@ -1,16 +1,19 @@
-package redis.internal;
+package blocking.redis.internal;
+
+import redis.internal.RedisValue;
 
 import java.util.concurrent.ConcurrentHashMap;
 
-public class RedisStringCore {
+@Deprecated
+public class BlockingRedisStringCore {
     private static final ConcurrentHashMap<String, RedisValue<String>> DATA = new ConcurrentHashMap<>();
 
-    private static final RedisStringCore INSTANCE = new RedisStringCore();
+    private static final BlockingRedisStringCore INSTANCE = new BlockingRedisStringCore();
 
-    private RedisStringCore() {
+    private BlockingRedisStringCore() {
     }
 
-    public static RedisStringCore getInstance() {
+    public static BlockingRedisStringCore getInstance() {
         return INSTANCE;
     }
 
