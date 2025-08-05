@@ -30,6 +30,12 @@ public class BufferReader implements Reader {
 
     @Override
     public int readByte() throws IOException {
+        ensureAvailable();
+        totalBytesRead++;
+        return incoming.peekAndAdvance() & 0xFF;
+    }
+
+    private void ensureAvailable() throws IOException {
         while (!incoming.hasAtLeast(1)) {
             int bytesRead = fillBuffer();
             if (bytesRead == 0) {
@@ -43,21 +49,25 @@ public class BufferReader implements Reader {
                 }
             }
         }
-        totalBytesRead++;
-        return incoming.peekAndAdvance() & 0xFF;
     }
 
     @Override
     public String readLine() throws IOException {
-        return readLine(-1);
+        return readLine(DEFAULT_BUFFER_SIZE);
     }
 
     @Override
     public String readLine(int len) throws IOException {
+        len = Math.max(0, Math.min(len, DEFAULT_BUFFER_SIZE));
+
         StringBuilder line = new StringBuilder();
         boolean foundCR = false;
         while (true) {
-            if (len >= 0 && line.length() > len) {
+            if (line.length() > DEFAULT_BUFFER_SIZE) {
+                throw new IOException("Too many bytes read");
+            }
+
+            if (line.length() > len) {
                 throw new IOException("Too many bytes read");
             }
             var ch = readByte();
@@ -80,6 +90,7 @@ public class BufferReader implements Reader {
     @Override
     public void mark() {
         incoming.mark();
+        totalBytesRead = 0;
     }
 
     @Override
