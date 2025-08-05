@@ -1,20 +1,23 @@
 package stream;
 
+import error.NotEnoughDataException;
+import server.nonblocking.Buffer;
+
+import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 
 public class BufferReader implements Reader {
 
-    private static final int DEFAULT_BUFFER_SIZE = 1024;
+    private static final int DEFAULT_BUFFER_SIZE = 64 * 1024; // 64KB
 
-    private final ByteBuffer buffer;
     private final ReadableByteChannel channel;
+    private final Buffer incoming;
 
-    public BufferReader(ReadableByteChannel channel) {
+    public BufferReader(ReadableByteChannel channel, Buffer incoming) {
         this.channel = channel;
-        this.buffer = ByteBuffer.allocate(DEFAULT_BUFFER_SIZE);
-        buffer.limit(0); // empty initially
+        this.incoming = incoming;
     }
 
     @Override
@@ -24,35 +27,23 @@ public class BufferReader implements Reader {
 
     @Override
     public int readByte() throws IOException {
-        fillBuffer();
-        if (!buffer.hasRemaining()) {
-            return -1;
+        while (!incoming.hasAtLeast(1)) {
+            int bytesRead = fillBuffer();
+            if (bytesRead == 0) {
+                throw new NotEnoughDataException();
+            }
+            if (bytesRead == -1) {
+                throw new EOFException("EOF Reached");
+            }
         }
-        return buffer.get() & 0xFF;
+        var b = incoming.getByte(0) & 0xFF;
+        incoming.consume(1);
+        return b;
     }
 
     @Override
     public String readLine() throws IOException {
-        StringBuilder line = new StringBuilder();
-        boolean foundCR = false;
-        while (true) {
-            int ch = readByte();
-            if (ch == -1) {
-                return null;
-            }
-            if (ch == '\r') {
-                foundCR = true;
-            } else if (ch == '\n' && foundCR) {
-                break;
-            } else {
-                if (foundCR) {
-                    line.append('\r');
-                    foundCR = false;
-                }
-                line.append((char) ch);
-            }
-        }
-        return line.toString();
+        return readLine(Integer.MAX_VALUE);
     }
 
     @Override
@@ -64,9 +55,6 @@ public class BufferReader implements Reader {
                 throw new IOException("Too many bytes read");
             }
             int ch = readByte();
-            if (ch == -1) {
-                return null;
-            }
             if (ch == '\r') {
                 foundCR = true;
             } else if (ch == '\n' && foundCR) {
@@ -82,57 +70,32 @@ public class BufferReader implements Reader {
         return line.toString();
     }
 
-    public String readAll() throws IOException {
-        StringBuilder result = new StringBuilder();
-
-        // First fill buffer with some data
-        fillBuffer();
-
-        int emptyReads = 0;
-        while (emptyReads < 3) {
-            boolean readSomething = false;
-
-            // Drain current buffer
-            while (buffer.hasRemaining()) {
-                result.append((char) buffer.get());
-                readSomething = true;
-            }
-
-            // Try to read more from channel
-            buffer.clear();
-            int bytesRead = channel.read(buffer);
-            if (bytesRead > 0) {
-                buffer.flip();
-                readSomething = true;
-            }
-
-            if (!readSomething) {
-                emptyReads++;
-                try {
-                    Thread.sleep(50);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            } else {
-                emptyReads = 0;
-            }
-        }
-
-        return result.toString();
+    public String readAll() {
+        throw new UnsupportedOperationException("readAll not implemented");
     }
 
-    private int fillBuffer() throws IOException {
-        if (buffer.hasRemaining()) {
-            return -1;
-        }
-        buffer.clear();
+    @Override
+    public int fillBuffer() throws IOException {
+        ByteBuffer buffer = ByteBuffer.allocate(DEFAULT_BUFFER_SIZE);
         int bytesRead = channel.read(buffer);
-        if (bytesRead == -1) {
-            // EOF is normal, do not log
+
+        if (bytesRead == 0) {
+            return 0; // actually not ready (would block)
+        }
+
+        if (bytesRead < 0) {
+            if (incoming.dataSize() == 0) {
+                System.out.println("Client disconnected");
+            } else {
+                System.out.println("Unexpected EOF");
+            }
             return -1;
         }
+
         buffer.flip();
+        byte[] data = new byte[bytesRead];
+        buffer.get(data);
+        incoming.append(data, bytesRead);
         return bytesRead;
     }
 }

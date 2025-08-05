@@ -4,6 +4,7 @@ import server.nonblocking.NonBlockingServer;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -179,45 +180,47 @@ class ServerTest {
         TestHelper.expectNull(client.sendArray(List.of("LPOP", "test_lpop")));
     }
 
-//    @Test
-//    void testServer_blpop() throws ExecutionException, InterruptedException {
-//        var taskClient2 = TestHelper.runOnAnotherClient(
-//                HOSTNAME, PORT,
-//                c -> c.sendArray(List.of("BLPOP", "test_blpop", "0")
-//                ));
-//
-//
-//        var taskClient3 = TestHelper.runOnAnotherClient(
-//                HOSTNAME, PORT,
-//                c -> c.sendArray(List.of("BLPOP", "test_blpop", "0")
-//                ));
-//
-//        Thread.sleep(10); // wait for the request from client 3 to come
-//
-//        TestHelper.expectInt(1, client.sendArray(List.of("RPUSH", "test_blpop", "a")));
-//        TestHelper.expectArray(List.of("test_blpop", "a"), taskClient2.get());
-//
-//        TestHelper.expectInt(0, client.sendArray(List.of("LLEN", "test_blpop")));
-//
-//
-//        Thread.sleep(200); // wait for the second push
-//
-//        TestHelper.expectInt(1, client.sendArray(List.of("RPUSH", "test_blpop", "b")));
-//        TestHelper.expectArray(List.of("test_blpop", "b"), taskClient3.get());
-//    }
+    @Disabled
+    @Test
+    void testServer_blpop() throws ExecutionException, InterruptedException {
+        var taskClient2 = TestHelper.runOnAnotherClient(
+                HOSTNAME, PORT,
+                c -> c.sendArray(List.of("BLPOP", "test_blpop", "0")
+                ));
 
-//    @Test
-//    void testServer_blpopWithTimeout() throws ExecutionException, InterruptedException {
-//        TestHelper.expectNull(client.sendArray(List.of("BLPOP", "test_blpop_timeout", "0.1")));
-//
-//        var taskClient2 = TestHelper.runOnAnotherClient(
-//                HOSTNAME, PORT,
-//                c -> c.sendArray(List.of("BLPOP", "test_blpop_timeout", "0.5")
-//                ));
-//
-//        Thread.sleep(10); // wait for the request
-//
-//        TestHelper.expectInt(1, client.sendArray(List.of("RPUSH", "test_blpop_timeout", "a")));
-//        TestHelper.expectArray(List.of("test_blpop_timeout", "a"), taskClient2.get());
-//    }
+
+        var taskClient3 = TestHelper.runOnAnotherClient(
+                HOSTNAME, PORT,
+                c -> c.sendArray(List.of("BLPOP", "test_blpop", "0")
+                ));
+
+        Thread.sleep(10); // wait for the request from client 3 to come
+
+        TestHelper.expectInt(1, client.sendArray(List.of("RPUSH", "test_blpop", "a")));
+        TestHelper.expectArray(List.of("test_blpop", "a"), taskClient2.get());
+
+        TestHelper.expectInt(0, client.sendArray(List.of("LLEN", "test_blpop")));
+
+
+        Thread.sleep(200); // wait for the second push
+
+        TestHelper.expectInt(1, client.sendArray(List.of("RPUSH", "test_blpop", "b")));
+        TestHelper.expectArray(List.of("test_blpop", "b"), taskClient3.get());
+    }
+
+    @Disabled
+    @Test
+    void testServer_blpopWithTimeout() throws ExecutionException, InterruptedException {
+        TestHelper.expectNull(client.sendArray(List.of("BLPOP", "test_blpop_timeout", "0.1")));
+
+        var taskClient2 = TestHelper.runOnAnotherClient(
+                HOSTNAME, PORT,
+                c -> c.sendArray(List.of("BLPOP", "test_blpop_timeout", "0.5")
+                ));
+
+        Thread.sleep(10); // wait for the request
+
+        TestHelper.expectInt(1, client.sendArray(List.of("RPUSH", "test_blpop_timeout", "a")));
+        TestHelper.expectArray(List.of("test_blpop_timeout", "a"), taskClient2.get());
+    }
 }

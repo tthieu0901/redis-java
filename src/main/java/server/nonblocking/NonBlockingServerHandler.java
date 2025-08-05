@@ -1,5 +1,6 @@
 package server.nonblocking;
 
+import error.NotEnoughDataException;
 import redis.RedisHandler;
 import redis.processor.RedisReadProcessor;
 
@@ -36,7 +37,7 @@ class NonBlockingServerHandler {
             }
 
             if (written < 0) {
-                System.out.println("write() error - channel closed");
+                System.err.println("write() error - channel closed");
                 conn.wantClose();
                 return;
             }
@@ -46,19 +47,17 @@ class NonBlockingServerHandler {
                 conn.wantRead();
             }
         } catch (IOException e) {
-            conn.wantClose();
             System.err.println("Write error: " + e.getMessage());
+            conn.wantClose();
+            e.printStackTrace();
         }
     }
 
     static void handleRead(Conn conn) {
         try {
-            var request = RedisReadProcessor.read(conn.getReader());
-            if (request.isEmpty()) {
-                return;
+            while (tryOneRequest(conn)) {
+
             }
-            var redisHandler = new RedisHandler(conn.getWriter());
-            redisHandler.handleCommand(request);
 
             // update the readiness intention
             if (conn.getWriter().hasRemaining()) {    // has a response
@@ -72,7 +71,19 @@ class NonBlockingServerHandler {
         } catch (Exception e) { // Catch all other exceptions
             conn.wantClose();
             System.err.println("Read error: " + e.getMessage());
+            e.printStackTrace();
         }
+    }
+
+    private static boolean tryOneRequest(Conn conn) throws IOException {
+        try {
+            var request = RedisReadProcessor.read(conn.getReader());
+            var redisHandler = new RedisHandler(conn.getWriter());
+            redisHandler.handleCommand(request);
+        } catch (NotEnoughDataException e) {
+            return false;
+        }
+        return true;
     }
 
     static void updateSelectionKey(SelectionKey key, Conn conn) {

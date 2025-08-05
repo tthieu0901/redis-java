@@ -13,4 +13,6 @@ public interface Reader {
     String readAll() throws IOException;
 
     void close() throws IOException;
+
+    int fillBuffer() throws IOException;
 }

@@ -19,6 +19,7 @@ public class RedisInputStream extends FilterInputStream implements Reader {
         this.buffer = new byte[DEFAULT_BUFFER_SIZE];
     }
 
+    @Override
     public void close() throws IOException {
         inputStream.close();
     }
@@ -74,22 +75,22 @@ public class RedisInputStream extends FilterInputStream implements Reader {
         return line.toString();
     }
 
-    private void fillBuffer() throws IOException {
+    @Override
+    public int fillBuffer() throws IOException {
         if (offset < bytesInBuffer) {
-            return;
+            return -1;
         }
         bytesInBuffer = inputStream.read(buffer);
         offset = 0;
         if (bytesInBuffer == -1) {
             throw new IllegalStateException("End of stream reached");
         }
+        return bytesInBuffer;
     }
 
     public String readAll() throws IOException {
         StringBuilder result = new StringBuilder();
 
-//        while (inputStream.available() <= 0) {
-//        }
         // First, ensure we have some data
         fillBuffer();
 

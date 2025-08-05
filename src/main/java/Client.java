@@ -57,8 +57,8 @@ public class Client {
     public static void main(String[] args) throws IOException {
         Client client = new Client();
         client.connect("localhost", 6379);
-        // var message = client.sendArray(List.of("ECHO", "Hello, world"));
-        var message = client.sendArray(List.of("RPUSH", "test_rpush", "Hello", "world"));
+         var message = client.sendArray(List.of("ECHO", "Hello, world"));
+//        var message = client.sendArray(List.of("RPUSH", "test_rpush", "Hello", "world"));
         System.out.println("Received message: " + message);
         client.disconnect();
     }
