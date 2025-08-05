@@ -49,7 +49,6 @@ class NonBlockingServerHandler {
         } catch (IOException e) {
             System.err.println("Write error: " + e.getMessage());
             conn.wantClose();
-            e.printStackTrace();
         }
     }
 
@@ -71,18 +70,21 @@ class NonBlockingServerHandler {
         } catch (Exception e) { // Catch all other exceptions
             conn.wantClose();
             System.err.println("Read error: " + e.getMessage());
-            e.printStackTrace();
         }
     }
 
     private static boolean tryOneRequest(Conn conn) throws IOException {
+        var reader = conn.getReader();
+        reader.mark();
         try {
-            var request = RedisReadProcessor.read(conn.getReader());
+            var request = RedisReadProcessor.read(reader);
             var redisHandler = new RedisHandler(conn.getWriter());
             redisHandler.handleCommand(request);
         } catch (NotEnoughDataException e) {
+            reader.reset();
             return false;
         }
+        reader.consume(); // Only when you handle successfully do you consume !!!
         return true;
     }
 

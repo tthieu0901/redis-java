@@ -2,37 +2,103 @@ package server.nonblocking;
 
 public class Buffer {
     private byte[] buffer;
-    private int bufferBegin;    // always 0 in our implementation
-    private int bufferEnd;      // buffer.length
-    private int dataBegin;      // start of valid data
-    private int dataEnd;        // end of valid data
+    private int bufferEnd;    // buffer.length
+
+    private int dataBegin;    // start of valid data
+    private int dataEnd;      // end of valid data
+
+    // ByteBuffer-style fields
+    private int position;     // read position (relative to dataBegin)
+    private int mark = -1;
 
     public Buffer(int initialSize) {
         this.buffer = new byte[initialSize];
-        this.bufferBegin = 0;
         this.bufferEnd = buffer.length;
         this.dataBegin = 0;
         this.dataEnd = 0;
+        this.position = 0;
     }
 
-    // Get the amount of valid data
+    // ========== Existing Methods ==========
+
     public int dataSize() {
         return dataEnd - dataBegin;
     }
 
-    // Get the amount of free space at the end
     public int freeSpace() {
         return bufferEnd - dataEnd;
     }
 
-    // Get data as byte array
+    public void append(byte[] data, int length) {
+        ensureCapacity(length);
+        System.arraycopy(data, 0, buffer, dataEnd, length);
+        dataEnd += length;
+    }
+
+    public void consume(int length) {
+        if (length > dataSize() - position) {
+            length = dataSize() - position;
+        }
+        position += length;
+        dataBegin += position;
+        position = 0;
+        mark = -1;
+
+        if (dataBegin > buffer.length / 2) {
+            compact();
+        }
+    }
+
+    private void compact() {
+        if (dataBegin > 0) {
+            int dataLength = dataSize();
+            System.arraycopy(buffer, dataBegin, buffer, 0, dataLength);
+            dataBegin = 0;
+            dataEnd = dataLength;
+        }
+        position = 0;
+        if (mark >= 0) {
+            mark = 0;
+        }
+    }
+
+    private void ensureCapacity(int additionalBytes) {
+        if (freeSpace() < additionalBytes) {
+            compact();
+
+            if (freeSpace() < additionalBytes) {
+                int newSize = Math.max(buffer.length * 2, dataSize() + additionalBytes);
+                byte[] newBuffer = new byte[newSize];
+                System.arraycopy(buffer, dataBegin, newBuffer, 0, dataSize());
+                buffer = newBuffer;
+                bufferEnd = buffer.length;
+                dataEnd = dataSize();
+                dataBegin = 0;
+                position = 0;
+                if (mark >= 0) {
+                    mark = 0;
+                }
+            }
+        }
+    }
+
+    public boolean hasAtLeast(int n) {
+        return dataSize() - position >= n;
+    }
+
+    public byte getByte(int offset) {
+        if (offset >= dataSize()) {
+            throw new IndexOutOfBoundsException("Offset beyond data");
+        }
+        return buffer[dataBegin + offset];
+    }
+
     public byte[] getData() {
         byte[] data = new byte[dataSize()];
         System.arraycopy(buffer, dataBegin, data, 0, dataSize());
         return data;
     }
 
-    // Get data from a specific offset with length
     public byte[] getData(int offset, int length) {
         if (offset + length > dataSize()) {
             throw new IndexOutOfBoundsException("Not enough data");
@@ -42,65 +108,62 @@ public class Buffer {
         return data;
     }
 
-    // Append data to the buffer
-    public void append(byte[] data, int length) {
-        ensureCapacity(length);
-        System.arraycopy(data, 0, buffer, dataEnd, length);
-        dataEnd += length;
+    // ========== ByteBuffer-style Additions ==========
+
+    public int getPosition() {
+        return position;
     }
 
-    // Consume data from the front
-    public void consume(int length) {
-        if (length > dataSize()) {
-            length = dataSize();
+    public void setPosition(int newPos) {
+        if (newPos < 0 || newPos > dataSize()) {
+            throw new IllegalArgumentException("Invalid position");
         }
-        dataBegin += length;
-
-        // Compact buffer if we've consumed more than half
-        if (dataBegin > buffer.length / 2) {
-            compact();
-        }
+        this.position = newPos;
     }
 
-    // Compact buffer by moving data to the beginning
-    private void compact() {
-        if (dataBegin > 0) {
-            int dataLength = dataSize();
-            System.arraycopy(buffer, dataBegin, buffer, 0, dataLength);
-            dataBegin = 0;
-            dataEnd = dataLength;
-        }
+    public int remaining() {
+        return dataSize() - position;
     }
 
-    // Ensure buffer has enough capacity for additional data
-    private void ensureCapacity(int additionalBytes) {
-        if (freeSpace() < additionalBytes) {
-            // Try compacting first
-            compact();
-
-            // If still not enough space, resize
-            if (freeSpace() < additionalBytes) {
-                int newSize = Math.max(buffer.length * 2, dataSize() + additionalBytes);
-                byte[] newBuffer = new byte[newSize];
-                System.arraycopy(buffer, dataBegin, newBuffer, 0, dataSize());
-                buffer = newBuffer;
-                bufferEnd = buffer.length;
-                dataEnd = dataSize();
-                dataBegin = 0;
-            }
+    public byte get() {
+        if (position >= dataSize()) {
+            throw new IndexOutOfBoundsException("No more data");
         }
+        return buffer[dataBegin + position++];
     }
 
-    // Check if buffer has at least n bytes of data
-    public boolean hasAtLeast(int n) {
-        return dataSize() >= n;
+    public void get(byte[] dst, int off, int len) {
+        if (remaining() < len) {
+            throw new IndexOutOfBoundsException("Not enough data");
+        }
+        System.arraycopy(buffer, dataBegin + position, dst, off, len);
+        position += len;
     }
 
-    // Get byte at specific offset from data start
-    public byte getByte(int offset) {
-        if (offset >= dataSize()) {
-            throw new IndexOutOfBoundsException("Offset beyond data");
+    public void mark() {
+        this.mark = this.position;
+    }
+
+    public void reset() {
+        if (mark < 0) {
+            throw new IllegalStateException("No mark set");
         }
-        return buffer[dataBegin + offset];
+        this.position = mark;
+    }
+
+    public void rewind() {
+        this.position = 0;
+        this.mark = -1;
+    }
+
+    public void clear() {
+        dataBegin = 0;
+        dataEnd = 0;
+        position = 0;
+        mark = -1;
+    }
+
+    public boolean hasRemaining() {
+        return remaining() > 0;
     }
 }

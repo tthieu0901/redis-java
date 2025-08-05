@@ -10,9 +10,21 @@ public interface Reader {
 
     String readLine(int maxLen) throws IOException;
 
-    String readAll() throws IOException;
+    default String readAll() throws IOException {
+        throw new UnsupportedOperationException("readAll not implemented");
+    }
+
+    default void mark() {
+        throw new UnsupportedOperationException("mark not implemented");
+    }
+
+    default void reset() throws IOException {
+        throw new UnsupportedOperationException("reset not implemented");
+    }
 
     void close() throws IOException;
 
-    int fillBuffer() throws IOException;
+    default void consume() {
+        throw new UnsupportedOperationException("consume not implemented");
+    }
 }

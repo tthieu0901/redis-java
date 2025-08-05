@@ -1,10 +1,8 @@
 package redis.processor;
 
-import error.NotEnoughDataException;
 import protocol.Protocol;
 import stream.Reader;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,12 +23,6 @@ public class RedisReadProcessor {
 
     public static List<Object> read(Reader reader) throws IOException {
         int firstByte = readFirstByte(reader);
-        if (firstByte == -1) {
-            throw new EOFException("End of stream");
-        }
-        if (firstByte == 0) {
-            throw new NotEnoughDataException();
-        }
         var dataType = Protocol.DataType.findDataTypeByPrefix((char) firstByte);
         if (dataType == null) {
             throw new IOException("Invalid data type");
@@ -54,6 +46,6 @@ public class RedisReadProcessor {
 
     private static String readBulkString(Reader reader) throws IOException {
         var maxLen = Integer.parseInt(readMessage(reader));
-        return readMessage(reader);
+        return readMessage(reader, maxLen);
     }
 }

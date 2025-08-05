@@ -14,6 +14,8 @@ public class BufferReader implements Reader {
 
     private final ReadableByteChannel channel;
     private final Buffer incoming;
+    private final ByteBuffer buffer = ByteBuffer.allocate(DEFAULT_BUFFER_SIZE);
+    private int totalBytesRead = 0;
 
     public BufferReader(ReadableByteChannel channel, Buffer incoming) {
         this.channel = channel;
@@ -36,25 +38,27 @@ public class BufferReader implements Reader {
                 throw new EOFException("EOF Reached");
             }
         }
-        var b = incoming.getByte(0) & 0xFF;
-        incoming.consume(1);
-        return b;
+        totalBytesRead++;
+        var data = incoming.getByte(incoming.getPosition()) & 0xFF;
+        incoming.setPosition(incoming.getPosition() + 1);
+        return data & 0xFF;
     }
 
     @Override
     public String readLine() throws IOException {
-        return readLine(Integer.MAX_VALUE);
+        return readLine(-1);
     }
 
     @Override
-    public String readLine(int maxLen) throws IOException {
+    public String readLine(int len) throws IOException {
         StringBuilder line = new StringBuilder();
         boolean foundCR = false;
         while (true) {
-            if (line.length() > maxLen) {
+            if (len >= 0 && line.length() > len) {
                 throw new IOException("Too many bytes read");
             }
-            int ch = readByte();
+            var ch = readByte();
+            // handle CRLF
             if (ch == '\r') {
                 foundCR = true;
             } else if (ch == '\n' && foundCR) {
@@ -67,16 +71,30 @@ public class BufferReader implements Reader {
                 line.append((char) ch);
             }
         }
+        if (line.length() < len) {
+            throw new NotEnoughDataException();
+        }
         return line.toString();
     }
 
-    public String readAll() {
-        throw new UnsupportedOperationException("readAll not implemented");
+    @Override
+    public void mark() {
+        incoming.mark();
     }
 
     @Override
-    public int fillBuffer() throws IOException {
-        ByteBuffer buffer = ByteBuffer.allocate(DEFAULT_BUFFER_SIZE);
+    public void reset() {
+        incoming.reset();
+        totalBytesRead = 0;
+    }
+
+    @Override
+    public void consume() {
+        incoming.consume(totalBytesRead);
+    }
+
+    private int fillBuffer() throws IOException {
+        buffer.clear();
         int bytesRead = channel.read(buffer);
 
         if (bytesRead == 0) {

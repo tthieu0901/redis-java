@@ -75,17 +75,15 @@ public class RedisInputStream extends FilterInputStream implements Reader {
         return line.toString();
     }
 
-    @Override
-    public int fillBuffer() throws IOException {
+    private void fillBuffer() throws IOException {
         if (offset < bytesInBuffer) {
-            return -1;
+            return;
         }
         bytesInBuffer = inputStream.read(buffer);
         offset = 0;
         if (bytesInBuffer == -1) {
             throw new IllegalStateException("End of stream reached");
         }
-        return bytesInBuffer;
     }
 
     public String readAll() throws IOException {
