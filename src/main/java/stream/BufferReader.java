@@ -25,6 +25,9 @@ public class BufferReader implements Reader {
     @Override
     public int readByte() throws IOException {
         fillBuffer();
+        if (!buffer.hasRemaining()) {
+            return -1;
+        }
         return buffer.get() & 0xFF;
     }
 
@@ -34,6 +37,9 @@ public class BufferReader implements Reader {
         boolean foundCR = false;
         while (true) {
             int ch = readByte();
+            if (ch == -1) {
+                return null;
+            }
             if (ch == '\r') {
                 foundCR = true;
             } else if (ch == '\n' && foundCR) {
@@ -58,6 +64,9 @@ public class BufferReader implements Reader {
                 throw new IOException("Too many bytes read");
             }
             int ch = readByte();
+            if (ch == -1) {
+                return null;
+            }
             if (ch == '\r') {
                 foundCR = true;
             } else if (ch == '\n' && foundCR) {
@@ -113,15 +122,17 @@ public class BufferReader implements Reader {
         return result.toString();
     }
 
-    private void fillBuffer() throws IOException {
+    private int fillBuffer() throws IOException {
         if (buffer.hasRemaining()) {
-            return;
+            return -1;
         }
         buffer.clear();
         int bytesRead = channel.read(buffer);
         if (bytesRead == -1) {
-            throw new IllegalStateException("End of stream reached");
+            // EOF is normal, do not log
+            return -1;
         }
         buffer.flip();
+        return bytesRead;
     }
 }

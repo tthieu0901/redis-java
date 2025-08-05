@@ -3,6 +3,7 @@ package redis.processor;
 import protocol.Protocol;
 import stream.Reader;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -10,20 +11,34 @@ import java.util.List;
 public class RedisReadProcessor {
 
     public static String readMessage(Reader reader) throws IOException {
-        return reader.readLine();
+        var message = reader.readLine();
+        if (message == null) {
+            throw new EOFException("End of stream");
+        }
+        return message;
     }
 
     public static String readMessage(Reader reader, int maxLen) throws IOException {
-        return reader.readLine(maxLen);
+        var message = reader.readLine(maxLen);
+        if (message == null) {
+            throw new EOFException("End of stream");
+        }
+        return message;
     }
 
-    private static char readFirstByte(Reader reader) throws IOException {
-        return (char) reader.readByte();
+    private static int readFirstByte(Reader reader) throws IOException {
+        return reader.readByte();
     }
 
     public static List<Object> read(Reader reader) throws IOException {
-        var firstChar = readFirstByte(reader);
-        var dataType = Protocol.DataType.findDataTypeByPrefix(firstChar);
+        int firstByte = readFirstByte(reader);
+        if (firstByte == -1) {
+            throw new EOFException("End of stream");
+        }
+        if (firstByte == 0) {
+            throw new EOFException("End of stream");
+        }
+        var dataType = Protocol.DataType.findDataTypeByPrefix((char)  firstByte);
         if (dataType == null) {
             throw new IOException("Invalid data type");
         }

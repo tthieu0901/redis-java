@@ -88,6 +88,8 @@ public class RedisInputStream extends FilterInputStream implements Reader {
     public String readAll() throws IOException {
         StringBuilder result = new StringBuilder();
 
+//        while (inputStream.available() <= 0) {
+//        }
         // First, ensure we have some data
         fillBuffer();
 

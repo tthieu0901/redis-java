@@ -15,12 +15,18 @@ public class RedisOutputStream implements Writer {
     }
 
     @Override
-    public void flush() throws IOException {
+    public int flush() throws IOException {
         out.flush();
+        return 1;
     }
 
     @Override
     public void close() throws IOException {
         out.close();
+    }
+
+    @Override
+    public boolean hasRemaining() {
+        return false;
     }
 }

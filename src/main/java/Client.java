@@ -10,7 +10,7 @@ import java.net.Socket;
 import java.util.List;
 
 public class Client {
-    private static final int TIMEOUT = 5000;
+    private static final int TIMEOUT = 50000;
     private Socket socket;
     private Reader inputStream;
     private Writer outputStream;
