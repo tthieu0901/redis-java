@@ -19,8 +19,6 @@ public class Buffer {
         this.position = 0;
     }
 
-    // ========== Existing Methods ==========
-
     public int dataSize() {
         return dataEnd - dataBegin;
     }
@@ -93,6 +91,12 @@ public class Buffer {
         return buffer[dataBegin + offset];
     }
 
+    public byte peekAndAdvance() {
+        var data = getByte(this.position);
+        setPosition(this.position + 1);
+        return data;
+    }
+
     public byte[] getData() {
         byte[] data = new byte[dataSize()];
         System.arraycopy(buffer, dataBegin, data, 0, dataSize());
@@ -107,8 +111,6 @@ public class Buffer {
         System.arraycopy(buffer, dataBegin + offset, data, 0, length);
         return data;
     }
-
-    // ========== ByteBuffer-style Additions ==========
 
     public int getPosition() {
         return position;
@@ -149,21 +151,5 @@ public class Buffer {
             throw new IllegalStateException("No mark set");
         }
         this.position = mark;
-    }
-
-    public void rewind() {
-        this.position = 0;
-        this.mark = -1;
-    }
-
-    public void clear() {
-        dataBegin = 0;
-        dataEnd = 0;
-        position = 0;
-        mark = -1;
-    }
-
-    public boolean hasRemaining() {
-        return remaining() > 0;
     }
 }

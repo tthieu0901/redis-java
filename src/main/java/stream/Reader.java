@@ -24,7 +24,7 @@ public interface Reader {
 
     void close() throws IOException;
 
-    default void consume() {
+    default void commit() {
         throw new UnsupportedOperationException("consume not implemented");
     }
 }

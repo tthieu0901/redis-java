@@ -1,5 +1,6 @@
 package server.nonblocking;
 
+import error.ClientDisconnectException;
 import error.NotEnoughDataException;
 import redis.RedisHandler;
 import redis.processor.RedisReadProcessor;
@@ -42,8 +43,7 @@ class NonBlockingServerHandler {
                 return;
             }
 
-            // update the readiness intention
-            if (!conn.getWriter().hasRemaining()) {   // all data written
+            if (!conn.getWriter().hasRemaining()) {
                 conn.wantRead();
             }
         } catch (IOException e) {
@@ -54,22 +54,26 @@ class NonBlockingServerHandler {
 
     static void handleRead(Conn conn) {
         try {
+            // due to multi-pipelining, we muse loop here
             while (tryOneRequest(conn)) {
 
             }
 
-            // update the readiness intention
-            if (conn.getWriter().hasRemaining()) {    // has a response
+            if (conn.getWriter().hasRemaining()) {
                 conn.wantWrite();
                 // The socket is likely ready to write in a request-response protocol,
                 // try to write it without waiting for the next iteration.
                 handleWrite(conn);
-            }   // else: want read
-        } catch (EOFException eof) {
-            conn.wantClose(); // Client closed connection, do not log as error
-        } catch (Exception e) { // Catch all other exceptions
+            }
+        } catch (ClientDisconnectException eof) {
+            System.out.println("Client disconnected");
             conn.wantClose();
+        } catch (EOFException eof) {
+            System.err.println("Client disconnected due to unexpected EOF - " + eof.getMessage());
+            conn.wantClose();
+        } catch (Exception e) { // Catch all other exceptions
             System.err.println("Read error: " + e.getMessage());
+            conn.wantClose();
         }
     }
 
@@ -84,7 +88,7 @@ class NonBlockingServerHandler {
             reader.reset();
             return false;
         }
-        reader.consume(); // Only when you handle successfully do you consume !!!
+        reader.commit(); // Only when you handle successfully do you consume !!!
         return true;
     }
 

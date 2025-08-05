@@ -1,5 +1,6 @@
 package stream;
 
+import error.ClientDisconnectException;
 import error.NotEnoughDataException;
 import server.nonblocking.Buffer;
 
@@ -35,13 +36,15 @@ public class BufferReader implements Reader {
                 throw new NotEnoughDataException();
             }
             if (bytesRead == -1) {
-                throw new EOFException("EOF Reached");
+                if (incoming.dataSize() == 0) {
+                    throw new ClientDisconnectException();
+                } else {
+                    throw new EOFException("Unexpected EOF while reading data");
+                }
             }
         }
         totalBytesRead++;
-        var data = incoming.getByte(incoming.getPosition()) & 0xFF;
-        incoming.setPosition(incoming.getPosition() + 1);
-        return data & 0xFF;
+        return incoming.peekAndAdvance() & 0xFF;
     }
 
     @Override
@@ -71,9 +74,6 @@ public class BufferReader implements Reader {
                 line.append((char) ch);
             }
         }
-        if (line.length() < len) {
-            throw new NotEnoughDataException();
-        }
         return line.toString();
     }
 
@@ -89,8 +89,9 @@ public class BufferReader implements Reader {
     }
 
     @Override
-    public void consume() {
+    public void commit() {
         incoming.consume(totalBytesRead);
+        totalBytesRead = 0;
     }
 
     private int fillBuffer() throws IOException {
@@ -102,11 +103,6 @@ public class BufferReader implements Reader {
         }
 
         if (bytesRead < 0) {
-            if (incoming.dataSize() == 0) {
-                System.out.println("Client disconnected");
-            } else {
-                System.out.println("Unexpected EOF");
-            }
             return -1;
         }
 
