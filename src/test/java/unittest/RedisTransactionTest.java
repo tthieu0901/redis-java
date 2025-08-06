@@ -5,7 +5,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import utils.RedisServer;
+import extension.RedisServer;
 import utils.TestHelper;
 
 import java.util.List;
@@ -14,7 +14,7 @@ import static utils.ConstHelper.REDIS_HOSTNAME;
 import static utils.ConstHelper.REDIS_PORT;
 
 @ExtendWith(RedisServer.class)
-public class RedisTransactionTest {
+class RedisTransactionTest {
     private Client client;
 
     @BeforeEach
