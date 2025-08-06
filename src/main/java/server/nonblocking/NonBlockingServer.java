@@ -1,6 +1,7 @@
 package server.nonblocking;
 
 import server.Server;
+import timeout.ServerCron;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -47,6 +48,8 @@ public class NonBlockingServer implements Server {
             System.out.println("Redis server listening on port " + port);
 
             while (running) {
+                ServerCron.getInstance().checkTimeouts();
+
                 int channels = selector.select();
                 if (channels == 0) {
                     return;

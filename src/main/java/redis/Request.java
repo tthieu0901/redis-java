@@ -9,16 +9,20 @@ public class Request {
     private final long deadline;
     @Getter
     private final Writer writer;
+    @Getter
+    private final long ttlMillis;
 
-    public Request(Writer writer, double ttlSeconds) {
+    public Request(Writer writer, long ttlMillis) {
         this.writer = writer;
         this.timestamp = System.currentTimeMillis();
-        this.deadline = timestamp + (long) (ttlSeconds * 1000L);
+        this.ttlMillis = ttlMillis;
+        this.deadline = timestamp + ttlMillis;
     }
 
     public Request(Writer writer) {
         this.writer = writer;
         this.timestamp = System.currentTimeMillis();
+        this.ttlMillis = DEFAULT_TIMEOUT;
         this.deadline = this.timestamp + DEFAULT_TIMEOUT;
     }
 

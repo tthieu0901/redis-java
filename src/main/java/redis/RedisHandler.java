@@ -7,6 +7,7 @@ import redis.internal.NonBlockingRedisStringCore;
 import redis.internal.RedisListCore;
 import redis.processor.RedisWriteProcessor;
 import stream.Writer;
+import timeout.ServerCron;
 
 import java.io.IOException;
 import java.util.*;
@@ -39,7 +40,6 @@ public class RedisHandler {
             case BLPOP -> blpop(req);
             default -> throw new IllegalArgumentException("Command not supported yet: " + cmd.name());
         }
-        handleAllTimeouts();
     }
 
     private void blpop(List<String> req) throws IOException {
@@ -51,7 +51,8 @@ public class RedisHandler {
         if ("0".equals(timeoutSeconds)) { // Wait indefinitely
             request = new Request(writer);
         } else {
-            request = new Request(writer, Double.parseDouble(timeoutSeconds));
+            var timeoutMillis = (long) (Double.parseDouble(timeoutSeconds) * 1000L);
+            request = new Request(writer, timeoutMillis);
         }
 
         var resp = redisListCore.lpop(key);
@@ -60,6 +61,19 @@ public class RedisHandler {
         } else {
             var queue = REQUEST_QUEUE.computeIfAbsent(key, _ -> new ArrayDeque<>());
             queue.add(request);
+
+            // register to serverCron to handle client timeout
+            ServerCron.getInstance().registerTimeout(request.getTtlMillis(), () -> {
+                try {
+                    if (REQUEST_QUEUE.get(key).contains(request)) {
+                        RedisWriteProcessor.sendNull(writer);
+                        REQUEST_QUEUE.get(key).remove(request);
+                    }
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+
             throw new ConnSleepException();
         }
     }
@@ -175,22 +189,6 @@ public class RedisHandler {
     private void validateNumberOfArgs(List<String> req, int minSize) {
         if (req.size() < minSize) {
             throw new IllegalArgumentException("Wrong number of arguments for command");
-        }
-    }
-
-    private void handleAllTimeouts() throws IOException {
-        for (var entry : REQUEST_QUEUE.entrySet()) {
-            var queue = entry.getValue();
-            if (queue == null) continue;
-
-            Iterator<Request> it = queue.iterator();
-            while (it.hasNext()) {
-                var request = it.next();
-                if (request.isTimeout()) {
-                    RedisWriteProcessor.sendNull(request.getWriter());
-                    it.remove();
-                }
-            }
         }
     }
 
