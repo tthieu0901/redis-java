@@ -6,8 +6,8 @@ import redis.internal.NonBlockingRedisListCore;
 import redis.internal.NonBlockingRedisStringCore;
 import redis.internal.RedisListCore;
 import redis.processor.RedisWriteProcessor;
-import stream.Writer;
 import server.cron.ServerCron;
+import stream.Writer;
 
 import java.io.IOException;
 import java.util.*;
@@ -38,8 +38,16 @@ public class RedisHandler {
             case LLEN -> llen(req);
             case LPOP -> lpop(req);
             case BLPOP -> blpop(req);
+            case INCR  -> incr(req);
             default -> throw new IllegalArgumentException("Command not supported yet: " + cmd.name());
         }
+    }
+
+    private void incr(List<String> req) throws IOException {
+        validateNumberOfArgs(req, 2);
+        var key = req.get(1);
+        var resp = redisStringCore.incr(key);
+        RedisWriteProcessor.sendInt(writer, Integer.parseInt(resp));
     }
 
     private void blpop(List<String> req) throws IOException {

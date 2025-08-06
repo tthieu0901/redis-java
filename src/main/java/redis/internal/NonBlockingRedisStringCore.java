@@ -34,4 +34,15 @@ public class NonBlockingRedisStringCore {
         }
         return redisValue.getValue();
     }
+
+    public String incr(String key) {
+        var value = get(key);
+        if (value != null) {
+            set(key, String.valueOf(Integer.parseInt(value) + 1));
+        } else {
+            set(key, "1");
+        }
+
+        return get(key);
+    }
 }
