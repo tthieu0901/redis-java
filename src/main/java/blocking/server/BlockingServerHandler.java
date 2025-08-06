@@ -14,7 +14,7 @@ class BlockingServerHandler {
 
     void handleClientSocket(BlockingServer server, Socket socket) {
         try {
-            System.out.println("Client connected: " + socket.getRemoteSocketAddress());
+            System.out.println("client.Client connected: " + socket.getRemoteSocketAddress());
             socket.setSoTimeout(5000); // Set read timeout
 
             var outputStream = new RedisOutputStream(socket.getOutputStream());
@@ -32,7 +32,7 @@ class BlockingServerHandler {
                         Thread.sleep(50); // Increased sleep time
                     }
                 } catch (IOException e) {
-                    // Client disconnected or timeout
+                    // client.Client disconnected or timeout
                     break;
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -40,7 +40,7 @@ class BlockingServerHandler {
                 }
             }
         } catch (Exception e) {
-            System.out.println("Client " + socket.getRemoteSocketAddress() + " error: " + e.fillInStackTrace());
+            System.out.println("client.Client " + socket.getRemoteSocketAddress() + " error: " + e.fillInStackTrace());
         } finally {
             try {
                 if (socket != null && !socket.isClosed()) {
