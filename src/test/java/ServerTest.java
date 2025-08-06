@@ -4,6 +4,7 @@ import server.nonblocking.NonBlockingServer;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -180,29 +181,31 @@ class ServerTest {
         TestHelper.expectNull(client.sendArray(List.of("LPOP", "test_lpop")));
     }
 
-    @Disabled
     @Test
     void testServer_blpop() throws ExecutionException, InterruptedException {
+        var latch2 = new CountDownLatch(1);
         var taskClient2 = TestHelper.runOnAnotherClient(
                 HOSTNAME, PORT,
-                c -> c.sendArray(List.of("BLPOP", "test_blpop", "0")
-                ));
+                c -> {
+                    latch2.countDown();
+                    return c.sendArray(List.of("BLPOP", "test_blpop", "0"));
+                });
+        latch2.await();
 
-
+        var latch3 = new CountDownLatch(1);
         var taskClient3 = TestHelper.runOnAnotherClient(
                 HOSTNAME, PORT,
-                c -> c.sendArray(List.of("BLPOP", "test_blpop", "0")
-                ));
+                c -> {
+                    latch3.countDown();
+                    return c.sendArray(List.of("BLPOP", "test_blpop", "0"));
+                });
 
-        Thread.sleep(10); // wait for the request from client 3 to come
+        latch3.await();
 
         TestHelper.expectInt(1, client.sendArray(List.of("RPUSH", "test_blpop", "a")));
         TestHelper.expectArray(List.of("test_blpop", "a"), taskClient2.get());
 
         TestHelper.expectInt(0, client.sendArray(List.of("LLEN", "test_blpop")));
-
-
-        Thread.sleep(200); // wait for the second push
 
         TestHelper.expectInt(1, client.sendArray(List.of("RPUSH", "test_blpop", "b")));
         TestHelper.expectArray(List.of("test_blpop", "b"), taskClient3.get());
@@ -213,12 +216,16 @@ class ServerTest {
     void testServer_blpopWithTimeout() throws ExecutionException, InterruptedException {
         TestHelper.expectNull(client.sendArray(List.of("BLPOP", "test_blpop_timeout", "0.1")));
 
+        var latch = new CountDownLatch(1);
+
         var taskClient2 = TestHelper.runOnAnotherClient(
                 HOSTNAME, PORT,
-                c -> c.sendArray(List.of("BLPOP", "test_blpop_timeout", "0.5")
-                ));
+                c -> {
+                    latch.countDown();
+                    return c.sendArray(List.of("BLPOP", "test_blpop_timeout", "0.5"));
+                });
 
-        Thread.sleep(10); // wait for the request
+        latch.await();
 
         TestHelper.expectInt(1, client.sendArray(List.of("RPUSH", "test_blpop_timeout", "a")));
         TestHelper.expectArray(List.of("test_blpop_timeout", "a"), taskClient2.get());
