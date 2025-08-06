@@ -1,21 +1,21 @@
 package redis;
 
+import error.ConnSleepException;
 import protocol.Protocol;
 import redis.internal.NonBlockingRedisListCore;
-import redis.internal.RedisListCore;
 import redis.internal.NonBlockingRedisStringCore;
+import redis.internal.RedisListCore;
 import redis.processor.RedisWriteProcessor;
 import stream.Writer;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 
 public class RedisHandler {
     private final NonBlockingRedisStringCore redisStringCore;
     private final RedisListCore redisListCore;
     private final Writer writer;
+    private static final HashMap<String, Queue<Request>> REQUEST_QUEUE = new HashMap<>();
 
     public RedisHandler(Writer writer) {
         this.writer = writer;
@@ -39,17 +39,28 @@ public class RedisHandler {
             case BLPOP -> blpop(req);
             default -> throw new IllegalArgumentException("Command not supported yet: " + cmd.name());
         }
+        handleAllTimeouts();
     }
 
     private void blpop(List<String> req) throws IOException {
         validateNumberOfArgs(req, 2);
         var key = req.get(1);
-        var timeout = req.getLast();
-        var resp = redisListCore.blpop(key, timeout);
-        if (resp == null) {
-            RedisWriteProcessor.sendNull(writer);
+        var timeoutSeconds = req.getLast();
+
+        final Request request;
+        if ("0".equals(timeoutSeconds)) { // Wait indefinitely
+            request = new Request(writer);
         } else {
+            request = new Request(writer, Double.parseDouble(timeoutSeconds));
+        }
+
+        var resp = redisListCore.lpop(key);
+        if (resp != null) {
             RedisWriteProcessor.sendArray(writer, List.of(key, resp));
+        } else {
+            var queue = REQUEST_QUEUE.computeIfAbsent(key, _ -> new ArrayDeque<>());
+            queue.add(request);
+            throw new ConnSleepException();
         }
     }
 
@@ -100,6 +111,7 @@ public class RedisHandler {
         var items = req.subList(2, req.size());
         var len = redisListCore.lpush(key, items);
         RedisWriteProcessor.sendInt(writer, len);
+        tryBlop(key);
     }
 
     private void rpush(List<String> req) throws IOException {
@@ -108,6 +120,7 @@ public class RedisHandler {
         var items = req.subList(2, req.size());
         var len = redisListCore.rpush(key, items);
         RedisWriteProcessor.sendInt(writer, len);
+        tryBlop(key);
     }
 
     private void ping() throws IOException {
@@ -162,6 +175,48 @@ public class RedisHandler {
     private void validateNumberOfArgs(List<String> req, int minSize) {
         if (req.size() < minSize) {
             throw new IllegalArgumentException("Wrong number of arguments for command");
+        }
+    }
+
+    private void handleAllTimeouts() throws IOException {
+        for (var entry : REQUEST_QUEUE.entrySet()) {
+            var queue = entry.getValue();
+            if (queue == null) continue;
+
+            Iterator<Request> it = queue.iterator();
+            while (it.hasNext()) {
+                var request = it.next();
+                if (request.isTimeout()) {
+                    RedisWriteProcessor.sendNull(request.getWriter());
+                    it.remove();
+                }
+            }
+        }
+    }
+
+    private void tryBlop(String key) throws IOException {
+        var queue = REQUEST_QUEUE.get(key);
+        if (queue == null) {
+            return;
+        }
+
+        while (!queue.isEmpty()) {
+            var request = queue.peek();
+            var writer = request.getWriter();
+
+            if (request.isTimeout()) {
+                RedisWriteProcessor.sendNull(writer);
+                queue.poll();
+                continue;
+            }
+
+            var value = redisListCore.lpop(key);
+            if (value == null) {
+                break;
+            }
+
+            RedisWriteProcessor.sendArray(writer, List.of(key, value));
+            queue.poll();
         }
     }
 }

@@ -1,10 +1,13 @@
 package redis.internal;
 
-import java.util.*;
+import redis.Request;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 
 public class NonBlockingRedisListCore implements RedisListCore {
     private static final HashMap<String, RedisValue<List<String>>> DATA = new HashMap<>();
-    private static final HashMap<String, Queue<String>> REQUEST_QUEUE = new HashMap<>();
 
     private static final RedisListCore INSTANCE = new NonBlockingRedisListCore();
 
@@ -17,7 +20,6 @@ public class NonBlockingRedisListCore implements RedisListCore {
         var list = getValueInternal(key);
         list.addAll(items);
         DATA.put(key, new RedisValue<>(list));
-        // TODO: notify BLPOP
         return list.size();
     }
 
@@ -27,7 +29,6 @@ public class NonBlockingRedisListCore implements RedisListCore {
         var list = getValueInternal(key);
         updatedList.addAll(list);
         DATA.put(key, new RedisValue<>(updatedList));
-        // TODO: notify BLPOP
         return updatedList.size();
     }
 
@@ -104,49 +105,6 @@ public class NonBlockingRedisListCore implements RedisListCore {
         return removeFist(key, list);
     }
 
-    @Override
-    public String blpop(String key, String timeoutSeconds) {
-        // TODO: Refine this logic
-        var queue = REQUEST_QUEUE.computeIfAbsent(key, _ -> new ArrayDeque<>());
-        var requestId = UUID.randomUUID().toString();
-        try {
-            // First check if data is immediately available
-            var list = getValueInternal(key);
-            if (!list.isEmpty()) {
-                return removeFist(key, list);
-            }
-
-            // Add to queue
-            queue.add(requestId);
-
-            // Check if we're first in queue
-            if (!Objects.equals(queue.peek(), requestId)) {
-//                    condition.await();
-                return null;
-            }
-
-            // We're first in queue, check for data
-            var value = getValueInternal(key);
-            if (!value.isEmpty()) {
-                return removeFist(key, value);
-            }
-
-            // No data available, wait for notification
-            if ("0".equals(timeoutSeconds)) {
-//                    condition.await();
-            } else {
-//                    if (!condition.await((long) (Double.parseDouble(timeoutSeconds) * 1000), TimeUnit.MILLISECONDS)) {
-//                        return null;
-//                    }
-            }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        } finally {
-            queue.remove(requestId);
-        }
-        return null;
-    }
-
     private String removeFist(String key, List<String> list) {
         if (list.isEmpty()) {
             return null;
@@ -159,5 +117,15 @@ public class NonBlockingRedisListCore implements RedisListCore {
             DATA.put(key, new RedisValue<>(list));
         }
         return deleted;
+    }
+
+    @Override
+    public String blpop(String key, String timeoutSeconds) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String blpop(String key, Request request) {
+        return lpop(key);
     }
 }

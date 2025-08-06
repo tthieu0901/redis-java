@@ -1,6 +1,7 @@
 package server.nonblocking;
 
 import error.ClientDisconnectException;
+import error.ConnSleepException;
 import error.NotEnoughDataException;
 import redis.RedisHandler;
 import redis.processor.RedisReadProcessor;
@@ -87,6 +88,8 @@ class NonBlockingServerHandler {
         } catch (NotEnoughDataException e) {
             reader.reset();
             return false;
+        } catch (ConnSleepException e) {
+            conn.wantWrite();
         }
         reader.commit(); // Only when you handle successfully do you consume !!!
         return true;
