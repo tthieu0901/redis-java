@@ -25,6 +25,10 @@ public class TestHelper {
         assertEquals("+" + expected + "\r\n", message);
     }
 
+    public static void expectOk(String message) {
+        expectSimpleString("OK", message);
+    }
+
     public static void expectBulkString(String expected, String message) {
         assertEquals(String.format("$%s\r\n%s\r\n", expected.length(), expected), message);
     }

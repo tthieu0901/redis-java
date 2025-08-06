@@ -29,7 +29,7 @@ class RedisTransactionTest {
 
     @Test
     void incr_keyExists_incrValue() {
-        TestHelper.expectSimpleString("OK", client.sendArray(List.of("SET", "test_exist", "5")));
+        TestHelper.expectOk(client.sendArray(List.of("SET", "test_exist", "5")));
         TestHelper.expectInt(6, client.sendArray(List.of("INCR", "test_exist")));
     }
 
@@ -40,12 +40,17 @@ class RedisTransactionTest {
 
     @Test
     void incr_keyCannotParse_returnError() {
-        TestHelper.expectSimpleString("OK", client.sendArray(List.of("SET", "test_cannot_parse", "Hello World!")));
+        TestHelper.expectOk(client.sendArray(List.of("SET", "test_cannot_parse", "Hello World!")));
         TestHelper.expectError("value is not an integer or out of range", client.sendArray(List.of("INCR", "test_cannot_parse")));
     }
 
     @Test
     void multi_returnOk() {
-        TestHelper.expectSimpleString("OK", client.sendArray(List.of("MULTI")));
+        TestHelper.expectOk(client.sendArray(List.of("MULTI")));
+    }
+
+    @Test
+    void exec_noMulti_returnError() {
+        TestHelper.expectError("EXEC without MULTI", client.sendArray(List.of("EXEC")));
     }
 }

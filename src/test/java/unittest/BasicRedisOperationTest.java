@@ -42,13 +42,13 @@ class BasicRedisOperationTest {
     @Test
     void testServer_set() {
         var message = client.sendArray(List.of("SET", "abc", "Hello, world"));
-        TestHelper.expectSimpleString("OK", message);
+        TestHelper.expectOk(message);
     }
 
     @Test
     void testServer_setThenGet() {
         var setMessage = client.sendArray(List.of("SET", "test_set_then_get", "Hello, world"));
-        TestHelper.expectSimpleString("OK", setMessage);
+        TestHelper.expectOk(setMessage);
 
         var getMessage = client.sendArray(List.of("GET", "test_set_then_get"));
         TestHelper.expectBulkString("Hello, world", getMessage);
@@ -63,7 +63,7 @@ class BasicRedisOperationTest {
     @Test
     void testServer_setWithExpiryTimeThenWaitAndGet() throws InterruptedException {
         var setMessage = client.sendArray(List.of("SET", "test_set_with_expiry_time", "Hello, world", "pX", "500"));
-        TestHelper.expectSimpleString("OK", setMessage);
+        TestHelper.expectOk(setMessage);
 
         var getMessage = client.sendArray(List.of("GET", "test_set_with_expiry_time"));
         TestHelper.expectBulkString("Hello, world", getMessage);

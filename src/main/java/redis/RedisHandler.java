@@ -41,8 +41,13 @@ public class RedisHandler {
             case BLPOP -> blpop(req);
             case INCR  -> incr(req);
             case MULTI  -> multi(req);
+            case EXEC  -> exec(req);
             default -> throw new IllegalArgumentException("Command not supported yet: " + cmd.name());
         }
+    }
+
+    private void exec(List<String> ignored) throws IOException {
+        RedisWriteProcessor.sendError(writer, "EXEC without MULTI");
     }
 
     private void multi(List<String> ignored) throws IOException {
