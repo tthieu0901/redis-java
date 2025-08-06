@@ -69,17 +69,11 @@ public class TestHelper {
 
     public static CompletableFuture<String> startClientAndSendRequest(Function<Client, String> handler) throws InterruptedException {
         var latch = new CountDownLatch(1);
-
-        var clientHandler = CompletableFuture.supplyAsync(() -> {
-            var client = TestHelper.startClient(REDIS_HOSTNAME, REDIS_PORT);
+        var client = runOnAnotherClient(REDIS_HOSTNAME, REDIS_PORT, c -> {
             latch.countDown();
-            var resp = handler.apply(client);
-            TestHelper.stopClient(client);
-            return resp;
+            return handler.apply(c);
         });
-
         latch.await();
-
-        return clientHandler;
+        return client;
     }
 }

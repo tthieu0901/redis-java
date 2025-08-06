@@ -52,7 +52,7 @@ public class RedisServer implements BeforeAllCallback, AfterAllCallback, Extensi
         if (serverTask != null) {
             try {
                 // The task might throw an exception on shutdown, which is expected
-                serverTask.exceptionally(ex -> null).get(2, TimeUnit.SECONDS);
+                serverTask.exceptionally(_ -> null).get(2, TimeUnit.SECONDS);
             } catch (Exception e) {
                 System.out.println("Server shutdown exception: " + e.getMessage());
                 // Force cancel if it's still running
