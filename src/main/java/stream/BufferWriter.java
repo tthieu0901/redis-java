@@ -1,6 +1,5 @@
 package stream;
 
-import lombok.RequiredArgsConstructor;
 import server.nonblocking.Buffer;
 
 import java.io.IOException;
@@ -9,7 +8,6 @@ import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
-@RequiredArgsConstructor
 public class BufferWriter implements Writer {
     private final WritableByteChannel channel;
     private final Charset charset;
