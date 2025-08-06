@@ -29,7 +29,7 @@ public class RedisHandler {
         var req = request.stream().filter(Objects::nonNull).map(Object::toString).toList();
         var cmd = getCmd(req);
         switch (cmd) {
-            case PING -> ping();
+            case PING -> ping(req);
             case ECHO -> echo(req);
             case SET -> set(req);
             case GET -> get(req);
@@ -40,8 +40,13 @@ public class RedisHandler {
             case LPOP -> lpop(req);
             case BLPOP -> blpop(req);
             case INCR  -> incr(req);
+            case MULTI  -> multi(req);
             default -> throw new IllegalArgumentException("Command not supported yet: " + cmd.name());
         }
+    }
+
+    private void multi(List<String> ignored) throws IOException {
+        RedisWriteProcessor.sendString(writer, "OK");
     }
 
     private void incr(List<String> req) throws IOException {
@@ -150,7 +155,7 @@ public class RedisHandler {
         tryBlop(key);
     }
 
-    private void ping() throws IOException {
+    private void ping(List<String> ignored) throws IOException {
         RedisWriteProcessor.sendString(writer, "PONG");
     }
 

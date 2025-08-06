@@ -38,7 +38,7 @@ public class RedisWriteProcessor {
         }
     }
 
-    public static void sendMessage(Writer writer, String message) throws IOException {
+    private static void sendMessage(Writer writer, String message) throws IOException {
         writer.write(message + CRLF);
     }
 }

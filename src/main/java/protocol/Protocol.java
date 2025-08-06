@@ -39,7 +39,7 @@ public class Protocol {
         LPOP,
         BLPOP,
         INCR,
-        ;
+        MULTI;
 
         public static Command findCommand(String command) {
             return Arrays.stream(Command.values()).filter(cmd -> cmd.name().equalsIgnoreCase(command)).findFirst().orElse(null);

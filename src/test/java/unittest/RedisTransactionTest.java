@@ -43,4 +43,9 @@ class RedisTransactionTest {
         TestHelper.expectSimpleString("OK", client.sendArray(List.of("SET", "test_cannot_parse", "Hello World!")));
         TestHelper.expectError("value is not an integer or out of range", client.sendArray(List.of("INCR", "test_cannot_parse")));
     }
+
+    @Test
+    void multi_returnOk() {
+        TestHelper.expectSimpleString("OK", client.sendArray(List.of("MULTI")));
+    }
 }
