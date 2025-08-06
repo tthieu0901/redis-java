@@ -1,7 +1,5 @@
 package redis.internal;
 
-import redis.Request;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -20,7 +18,7 @@ public class NonBlockingRedisListCore implements RedisListCore {
         var list = getValueInternal(key);
         list.addAll(items);
         DATA.put(key, new RedisValue<>(list));
-        return list.size();
+        return size(key);
     }
 
     @Override
@@ -29,7 +27,7 @@ public class NonBlockingRedisListCore implements RedisListCore {
         var list = getValueInternal(key);
         updatedList.addAll(list);
         DATA.put(key, new RedisValue<>(updatedList));
-        return updatedList.size();
+        return size(key);
     }
 
 
@@ -124,8 +122,4 @@ public class NonBlockingRedisListCore implements RedisListCore {
         throw new UnsupportedOperationException();
     }
 
-    @Override
-    public String blpop(String key, Request request) {
-        return lpop(key);
-    }
 }

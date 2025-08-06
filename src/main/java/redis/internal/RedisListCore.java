@@ -1,7 +1,5 @@
 package redis.internal;
 
-import redis.Request;
-
 import java.io.IOException;
 import java.util.List;
 
@@ -21,9 +19,5 @@ public interface RedisListCore {
     String lpop(String key);
 
     String blpop(String key, String timeoutSeconds);
-
-    default String blpop(String key, Request request) {
-        throw new UnsupportedOperationException();
-    }
 
 }
