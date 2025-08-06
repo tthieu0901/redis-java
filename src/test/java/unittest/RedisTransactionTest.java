@@ -32,4 +32,9 @@ public class RedisTransactionTest {
         TestHelper.expectSimpleString("OK", client.sendArray(List.of("SET", "foo", "5")));
         TestHelper.expectInt(6, client.sendArray(List.of("INCR", "foo")));
     }
+
+    @Test
+    void incr_keyNotExists_setMinusOne() {
+        TestHelper.expectInt(1, client.sendArray(List.of("INCR", "not_exist")));
+    }
 }
