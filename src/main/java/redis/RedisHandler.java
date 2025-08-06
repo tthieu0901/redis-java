@@ -1,10 +1,12 @@
 package redis;
 
 import error.ConnSleepException;
+import error.ExecNoMultiException;
 import protocol.Protocol;
 import redis.internal.NonBlockingRedisListCore;
 import redis.internal.NonBlockingRedisStringCore;
 import redis.internal.RedisListCore;
+import redis.internal.TransactionCore;
 import redis.processor.RedisWriteProcessor;
 import server.cron.ServerCron;
 import stream.Writer;
@@ -16,6 +18,7 @@ public class RedisHandler {
     private static final String INVALID_INTEGER = "value is not an integer or out of range";
     private final NonBlockingRedisStringCore redisStringCore;
     private final RedisListCore redisListCore;
+    private final TransactionCore transactionCore;
     private final Writer writer;
     private static final HashMap<String, Queue<Request>> REQUEST_QUEUE = new HashMap<>();
 
@@ -23,6 +26,7 @@ public class RedisHandler {
         this.writer = writer;
         this.redisStringCore = NonBlockingRedisStringCore.getInstance();
         this.redisListCore = NonBlockingRedisListCore.getInstance();
+        this.transactionCore = TransactionCore.getInstance();
     }
 
     public void handleCommand(List<Object> request) throws IOException {
@@ -39,18 +43,24 @@ public class RedisHandler {
             case LLEN -> llen(req);
             case LPOP -> lpop(req);
             case BLPOP -> blpop(req);
-            case INCR  -> incr(req);
-            case MULTI  -> multi(req);
-            case EXEC  -> exec(req);
+            case INCR -> incr(req);
+            case MULTI -> multi(req);
+            case EXEC -> exec(req);
             default -> throw new IllegalArgumentException("Command not supported yet: " + cmd.name());
         }
     }
 
     private void exec(List<String> ignored) throws IOException {
-        RedisWriteProcessor.sendError(writer, "EXEC without MULTI");
+        try {
+            transactionCore.exec();
+            RedisWriteProcessor.sendArray(writer, List.of());
+        } catch (ExecNoMultiException e) {
+            RedisWriteProcessor.sendError(writer, "EXEC without MULTI");
+        }
     }
 
     private void multi(List<String> ignored) throws IOException {
+        transactionCore.multi();
         RedisWriteProcessor.sendString(writer, "OK");
     }
 

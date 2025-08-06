@@ -53,4 +53,11 @@ class RedisTransactionTest {
     void exec_noMulti_returnError() {
         TestHelper.expectError("EXEC without MULTI", client.sendArray(List.of("EXEC")));
     }
+
+    @Test
+    void exec_emptyTransaction_returnEmptyTransaction() {
+        TestHelper.expectOk(client.sendArray(List.of("MULTI")));
+        TestHelper.expectArray(List.of(), client.sendArray(List.of("EXEC")));
+        TestHelper.expectError("EXEC without MULTI", client.sendArray(List.of("EXEC")));
+    }
 }
