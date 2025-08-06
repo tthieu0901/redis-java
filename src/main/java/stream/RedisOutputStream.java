@@ -1,13 +1,14 @@
 package stream;
 
-import lombok.RequiredArgsConstructor;
-
 import java.io.IOException;
 import java.io.OutputStream;
 
-@RequiredArgsConstructor
 public class RedisOutputStream implements Writer {
     private final OutputStream out;
+
+    public RedisOutputStream(OutputStream out) {
+        this.out = out;
+    }
 
     @Override
     public void write(String str) throws IOException {
