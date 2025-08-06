@@ -42,7 +42,6 @@ public class NonBlockingRedisStringCore {
         } else {
             set(key, "1");
         }
-
         return get(key);
     }
 }

@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.util.*;
 
 public class RedisHandler {
+    private static final String INVALID_INTEGER = "value is not an integer or out of range";
     private final NonBlockingRedisStringCore redisStringCore;
     private final RedisListCore redisListCore;
     private final Writer writer;
@@ -46,8 +47,12 @@ public class RedisHandler {
     private void incr(List<String> req) throws IOException {
         validateNumberOfArgs(req, 2);
         var key = req.get(1);
-        var resp = redisStringCore.incr(key);
-        RedisWriteProcessor.sendInt(writer, Integer.parseInt(resp));
+        try {
+            var resp = redisStringCore.incr(key); // TODO: what if key is timeout ??
+            RedisWriteProcessor.sendInt(writer, Integer.parseInt(resp));
+        } catch (NumberFormatException e) {
+            RedisWriteProcessor.sendError(writer, INVALID_INTEGER);
+        }
     }
 
     private void blpop(List<String> req) throws IOException {

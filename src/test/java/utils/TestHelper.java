@@ -13,6 +13,10 @@ import static utils.ConstHelper.REDIS_HOSTNAME;
 import static utils.ConstHelper.REDIS_PORT;
 
 public class TestHelper {
+    public static void expectError(String expected, String message) {
+        assertEquals("-ERR " + expected + "\r\n", message);
+    }
+
     public static void expectNull(String message) {
         assertEquals("$-1\r\n", message);
     }

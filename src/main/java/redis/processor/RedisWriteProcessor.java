@@ -10,6 +10,10 @@ public class RedisWriteProcessor {
     protected static final String CRLF = "\r\n";
     private static final String NULL_VALUE = "$-1";
 
+    public static void sendError(Writer writer, String errorMessage) throws IOException {
+        sendMessage(writer, String.format("%sERR %s", Protocol.DataType.ERROR.getPrefix(), errorMessage));
+    }
+
     public static void sendNull(Writer writer) throws IOException {
         sendMessage(writer, NULL_VALUE);
     }
