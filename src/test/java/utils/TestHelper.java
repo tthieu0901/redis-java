@@ -29,6 +29,10 @@ public class TestHelper {
         expectSimpleString("OK", message);
     }
 
+    public static void expectQueued(String message) {
+        expectSimpleString("QUEUED", message);
+    }
+
     public static void expectBulkString(String expected, String message) {
         assertEquals(String.format("$%s\r\n%s\r\n", expected.length(), expected), message);
     }

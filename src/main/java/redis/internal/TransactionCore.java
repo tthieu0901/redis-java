@@ -34,4 +34,13 @@ public class TransactionCore {
         TRANSACTION_QUEUE.remove(command.getConnectionId());
         return queue;
     }
+
+    public boolean queue(Command command) {
+        var queue = TRANSACTION_QUEUE.get(command.getConnectionId());
+        if (queue != null) {
+            queue.add(command);
+            return true;
+        }
+        return false;
+    }
 }

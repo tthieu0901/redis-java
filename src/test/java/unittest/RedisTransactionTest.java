@@ -9,6 +9,7 @@ import extension.RedisServer;
 import utils.TestHelper;
 
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 import static utils.ConstHelper.REDIS_HOSTNAME;
 import static utils.ConstHelper.REDIS_PORT;
@@ -59,5 +60,15 @@ class RedisTransactionTest {
         TestHelper.expectOk(client.sendArray(List.of("MULTI")));
         TestHelper.expectArray(List.of(), client.sendArray(List.of("EXEC")));
         TestHelper.expectError("EXEC without MULTI", client.sendArray(List.of("EXEC")));
+    }
+
+    @Test
+    void exec_transaction_shouldQueueTransaction() throws ExecutionException, InterruptedException {
+        TestHelper.expectOk(client.sendArray(List.of("MULTI")));
+        TestHelper.expectQueued(client.sendArray(List.of("SET", "test_queue", "12")));
+        TestHelper.expectQueued(client.sendArray(List.of("INCR", "test_queue")));
+
+        var newClient = TestHelper.startClientAndSendRequest(c -> c.sendArray(List.of("GET", "test_queue")));
+        TestHelper.expectNull(newClient.get());
     }
 }

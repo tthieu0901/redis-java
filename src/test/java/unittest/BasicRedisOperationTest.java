@@ -62,14 +62,14 @@ class BasicRedisOperationTest {
 
     @Test
     void testServer_setWithExpiryTimeThenWaitAndGet() throws InterruptedException {
-        var setMessage = client.sendArray(List.of("SET", "test_set_with_expiry_time", "Hello, world", "pX", "500"));
+        var setMessage = client.sendArray(List.of("SET", "test_set_with_expiry_time", "Hello, world", "pX", "200"));
         TestHelper.expectOk(setMessage);
 
         var getMessage = client.sendArray(List.of("GET", "test_set_with_expiry_time"));
         TestHelper.expectBulkString("Hello, world", getMessage);
 
         // Wait for expiry time
-        Thread.sleep(700);
+        Thread.sleep(400);
 
         var expiredMessage = client.sendArray(List.of("GET", "test_set_with_expiry_time"));
         TestHelper.expectNull(expiredMessage);

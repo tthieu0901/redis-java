@@ -5,6 +5,7 @@ import java.util.List;
 public record Response(Object message, ResponseType responseType) {
     private static final Response NULL_RESPONSE = new Response(null, ResponseType.NULL);
     private static final Response OK_RESPONSE = simpleString("OK");
+    private static final Response QUEUED_RESPONSE = simpleString("QUEUED");
 
     public enum ResponseType {
         STRING,
@@ -19,6 +20,10 @@ public record Response(Object message, ResponseType responseType) {
 
     public static Response ok() {
         return OK_RESPONSE;
+    }
+
+    public static Response queued() {
+        return QUEUED_RESPONSE;
     }
 
     public static Response simpleString(String message) {

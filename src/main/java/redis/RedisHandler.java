@@ -15,12 +15,13 @@ import java.io.IOException;
 import java.util.*;
 
 public class RedisHandler {
-    private static final String INVALID_INTEGER = "value is not an integer or out of range";
+    private static final EnumSet<Protocol.Command> TRANSACTION_COMMANDS = EnumSet.of(Protocol.Command.MULTI, Protocol.Command.EXEC);
+    private static final HashMap<String, Queue<Request>> REQUEST_QUEUE = new HashMap<>();
+
     private final NonBlockingRedisStringCore redisStringCore;
     private final RedisListCore redisListCore;
     private final TransactionCore transactionCore;
     private final Writer writer;
-    private static final HashMap<String, Queue<Request>> REQUEST_QUEUE = new HashMap<>();
 
     public RedisHandler(Writer writer) {
         this.writer = writer;
@@ -39,6 +40,9 @@ public class RedisHandler {
 
     private Response handleCommand(Command command) throws IOException {
         var cmd = command.getCmd();
+        if (!TRANSACTION_COMMANDS.contains(cmd) && transactionCore.queue(command)) {
+            return Response.queued();
+        }
         return switch (cmd) {
             case PING -> ping(command);
             case ECHO -> echo(command);
@@ -101,7 +105,7 @@ public class RedisHandler {
             var resp = redisStringCore.incr(key);
             return Response.intValue(resp);
         } catch (NumberFormatException e) {
-            return Response.error(INVALID_INTEGER);
+            return Response.error("value is not an integer or out of range");
         }
     }
 
