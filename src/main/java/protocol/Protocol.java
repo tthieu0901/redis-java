@@ -44,6 +44,7 @@ public class Protocol {
         DISCARD,
         INFO,
         REPLCONF,
+        PSYNC,
         ;
 
         public static Command findCommand(String command) {
