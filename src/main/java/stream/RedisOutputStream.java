@@ -3,7 +3,7 @@ package stream;
 import java.io.IOException;
 import java.io.OutputStream;
 
-public class RedisOutputStream implements Writer {
+public class RedisOutputStream extends Writer {
     private final OutputStream out;
 
     public RedisOutputStream(OutputStream out) {

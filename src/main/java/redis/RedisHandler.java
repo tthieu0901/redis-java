@@ -31,54 +31,84 @@ public class RedisHandler {
 
     public void handleCommand(List<Object> request) throws IOException {
         var req = request.stream().filter(Objects::nonNull).map(Object::toString).toList();
-        var cmd = getCmd(req);
-        switch (cmd) {
-            case PING -> ping(req);
-            case ECHO -> echo(req);
-            case SET -> set(req);
-            case GET -> get(req);
-            case RPUSH -> rpush(req);
-            case LPUSH -> lpush(req);
-            case LRANGE -> lrange(req);
-            case LLEN -> llen(req);
-            case LPOP -> lpop(req);
-            case BLPOP -> blpop(req);
-            case INCR -> incr(req);
-            case MULTI -> multi(req);
-            case EXEC -> exec(req);
-            default -> throw new IllegalArgumentException("Command not supported yet: " + cmd.name());
+        var command = new Command(writer.getId(), req);
+        validateNumberOfArgs(command, 1);
+        var resp = handleCommand(command);
+        sendResponse(resp);
+    }
+
+    private Response handleCommand(Command command) throws IOException {
+        var cmd = command.getCmd();
+        return switch (cmd) {
+            case PING -> ping(command);
+            case ECHO -> echo(command);
+            case SET -> set(command);
+            case GET -> get(command);
+            case RPUSH -> rpush(command);
+            case LPUSH -> lpush(command);
+            case LRANGE -> lrange(command);
+            case LLEN -> llen(command);
+            case LPOP -> lpop(command);
+            case BLPOP -> blpop(command);
+            case INCR -> incr(command);
+            case MULTI -> multi(command);
+            case EXEC -> exec(command);
+        };
+    }
+
+    // TODO: Handle unchecked cast later
+    private void sendResponse(Response response) throws IOException {
+        switch (response.responseType()) {
+            case STRING -> RedisWriteProcessor.sendString(writer, (String) response.message());
+            case ERROR -> RedisWriteProcessor.sendError(writer, (String) response.message());
+            case INTEGER -> RedisWriteProcessor.sendInt(writer, (int) response.message());
+            case BULK_STRING -> RedisWriteProcessor.sendBulkString(writer, (String) response.message());
+            case ARRAY_STRING -> RedisWriteProcessor.sendArray(writer, (List<String>) response.message());
+            case ARRAY_RESPONSE -> {
+                var responses = (List<Response>) response.message();
+                RedisWriteProcessor.sendMessage(writer, Protocol.DataType.ARRAY.getPrefix() + String.valueOf(responses.size()));
+                for (var resp : responses) {
+                    sendResponse(resp);
+                }
+            }
+            case NULL -> RedisWriteProcessor.sendNull(writer);
         }
     }
 
-    private void exec(List<String> ignored) throws IOException {
+    private Response exec(Command command) throws IOException {
         try {
-            transactionCore.exec();
-            RedisWriteProcessor.sendArray(writer, List.of());
+            var commandQueue = transactionCore.exec(command);
+            var responses = new ArrayList<Response>();
+            while (!commandQueue.isEmpty()) {
+                var resp = handleCommand(commandQueue.poll());
+                responses.add(resp);
+            }
+            return Response.arrayResponse(responses);
         } catch (ExecNoMultiException e) {
-            RedisWriteProcessor.sendError(writer, "EXEC without MULTI");
+            return Response.error("EXEC without MULTI");
         }
     }
 
-    private void multi(List<String> ignored) throws IOException {
-        transactionCore.multi();
-        RedisWriteProcessor.sendString(writer, "OK");
+    private Response multi(Command command) {
+        transactionCore.multi(command);
+        return Response.ok();
     }
 
-    private void incr(List<String> req) throws IOException {
-        validateNumberOfArgs(req, 2);
-        var key = req.get(1);
+    private Response incr(Command command) {
+        validateNumberOfArgs(command, 2);
+        var key = command.getKey();
         try {
-            var resp = redisStringCore.incr(key); // TODO: what if key is timeout ??
-            RedisWriteProcessor.sendInt(writer, Integer.parseInt(resp));
+            var resp = redisStringCore.incr(key);
+            return Response.intValue(resp);
         } catch (NumberFormatException e) {
-            RedisWriteProcessor.sendError(writer, INVALID_INTEGER);
+            return Response.error(INVALID_INTEGER);
         }
     }
 
-    private void blpop(List<String> req) throws IOException {
-        validateNumberOfArgs(req, 2);
-        var key = req.get(1);
-        var timeoutSeconds = req.getLast();
+    private Response blpop(Command command) {
+        validateNumberOfArgs(command, 2);
+        var key = command.getKey();
+        var timeoutSeconds = command.getData().getFirst();
 
         final Request request;
         if ("0".equals(timeoutSeconds)) { // Wait indefinitely
@@ -90,124 +120,115 @@ public class RedisHandler {
 
         var resp = redisListCore.lpop(key);
         if (resp != null) {
-            RedisWriteProcessor.sendArray(writer, List.of(key, resp));
-        } else {
-            var queue = REQUEST_QUEUE.computeIfAbsent(key, _ -> new ArrayDeque<>());
-            queue.add(request);
+            return Response.arrayString(List.of(key, resp));
+        }
 
-            // register to serverCron to handle client timeout
-            ServerCron.getInstance().registerTimeout(request.getTtlMillis(), () -> {
-                try {
-                    if (REQUEST_QUEUE.get(key).contains(request)) {
-                        RedisWriteProcessor.sendNull(writer);
-                        REQUEST_QUEUE.get(key).remove(request);
-                    }
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
+        var queue = REQUEST_QUEUE.computeIfAbsent(key, _ -> new ArrayDeque<>());
+        queue.add(request);
+
+        // register to serverCron to handle client timeout
+        ServerCron.getInstance().registerTimeout(request.getTtlMillis(), () -> {
+            try {
+                if (REQUEST_QUEUE.get(key).contains(request)) {
+                    RedisWriteProcessor.sendNull(writer);
+                    REQUEST_QUEUE.get(key).remove(request);
                 }
-            });
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
 
-            throw new ConnSleepException();
-        }
+        throw new ConnSleepException();
     }
 
-    private void lpop(List<String> req) throws IOException {
-        validateNumberOfArgs(req, 2);
-        var key = req.get(1);
-        if (req.size() == 2) {
-            lpopSingleElement(key);
+    private Response lpop(Command command) {
+        validateNumberOfArgs(command, 2);
+        var key = command.getKey();
+        if (command.getData().isEmpty()) {
+            return lpopSingleElement(key);
         } else {
-            lpopMultipleElements(req, key);
+            return lpopMultipleElements(command, key);
         }
     }
 
-    private void lpopMultipleElements(List<String> req, String key) throws IOException {
-        var nPop = Integer.parseInt(req.get(2));
+    private Response lpopMultipleElements(Command command, String key) {
+        var nPop = Integer.parseInt(command.getData().getFirst());
         var deletedList = redisListCore.lpop(key, nPop);
-        RedisWriteProcessor.sendArray(writer, deletedList);
+        return Response.arrayString(deletedList);
     }
 
-    private void lpopSingleElement(String key) throws IOException {
+    private Response lpopSingleElement(String key) {
         var resp = redisListCore.lpop(key);
-        if (resp == null) {
-            RedisWriteProcessor.sendNull(writer);
-        } else {
-            RedisWriteProcessor.sendBulkString(writer, resp);
-        }
+        return resp == null
+                ? Response.nullValue()
+                : Response.bulkString(resp);
     }
 
-    private void llen(List<String> req) throws IOException {
-        validateNumberOfArgs(req, 2);
-        var key = req.get(1);
+    private Response llen(Command command) {
+        validateNumberOfArgs(command, 2);
+        var key = command.getKey();
         var len = redisListCore.size(key);
-        RedisWriteProcessor.sendInt(writer, len);
+        return Response.intValue(len);
     }
 
-    private void lrange(List<String> req) throws IOException {
-        validateNumberOfArgs(req, 4);
-        var key = req.get(1);
-        var startIdx = Integer.parseInt(req.get(2));
-        var endIdx = Integer.parseInt(req.get(3));
+    private Response lrange(Command command) {
+        validateNumberOfArgs(command, 4);
+        var key = command.getKey();
+        var data = command.getData();
+        var startIdx = Integer.parseInt(data.getFirst());
+        var endIdx = Integer.parseInt(data.get(1));
         var resp = redisListCore.lrange(key, startIdx, endIdx);
-        RedisWriteProcessor.sendArray(writer, resp);
+        return Response.arrayString(resp);
     }
 
-    private void lpush(List<String> req) throws IOException {
-        validateNumberOfArgs(req, 3);
-        var key = req.get(1);
-        var items = req.subList(2, req.size());
+    private Response lpush(Command command) throws IOException {
+        validateNumberOfArgs(command, 3);
+        var key = command.getKey();
+        var items = command.getData();
         var len = redisListCore.lpush(key, items);
-        RedisWriteProcessor.sendInt(writer, len);
         tryBlop(key);
+        return Response.intValue(len);
     }
 
-    private void rpush(List<String> req) throws IOException {
-        validateNumberOfArgs(req, 3);
-        var key = req.get(1);
-        var items = req.subList(2, req.size());
+    private Response rpush(Command command) throws IOException {
+        validateNumberOfArgs(command, 3);
+        var key = command.getKey();
+        var items = command.getData();
         var len = redisListCore.rpush(key, items);
-        RedisWriteProcessor.sendInt(writer, len);
         tryBlop(key);
+        return Response.intValue(len);
     }
 
-    private void ping(List<String> ignored) throws IOException {
-        RedisWriteProcessor.sendString(writer, "PONG");
+    private Response ping(Command ignored) {
+        return Response.simpleString("PONG");
     }
 
-    private void get(List<String> req) throws IOException {
-        validateNumberOfArgs(req, 2);
-        var key = req.get(1);
+    private Response get(Command command) {
+        validateNumberOfArgs(command, 2);
+        var key = command.getKey();
         var value = redisStringCore.get(key);
-        if (value == null) {
-            RedisWriteProcessor.sendNull(writer);
-        } else {
-            RedisWriteProcessor.sendBulkString(writer, value);
-        }
+        return Optional.ofNullable(value)
+                .map(Response::bulkString)
+                .orElseGet(Response::nullValue);
     }
 
-    private void set(List<String> req) throws IOException {
-        validateNumberOfArgs(req, 3);
-        var key = req.get(1);
-        var value = req.get(2);
-        int pxIdx = findStringIgnoreCase(req, "px", 3);
+    private Response set(Command command) {
+        validateNumberOfArgs(command, 3);
+        var key = command.getKey();
+        var data = command.getData();
+        var value = data.getFirst();
+        int pxIdx = findStringIgnoreCase(data, "px", 1);
         if (pxIdx == -1) {
             redisStringCore.set(key, value);
         } else {
-            redisStringCore.set(key, value, Long.parseLong(req.get(pxIdx + 1)));
+            redisStringCore.set(key, value, Long.parseLong(data.get(pxIdx + 1)));
         }
-        RedisWriteProcessor.sendString(writer, "OK");
+        return Response.ok();
     }
 
-    private void echo(List<String> req) throws IOException {
-        validateNumberOfArgs(req, 2);
-        RedisWriteProcessor.sendBulkString(writer, Objects.toString(req.get(1), ""));
-    }
-
-    private Protocol.Command getCmd(List<String> req) {
-        validateNumberOfArgs(req, 1);
-        var command = req.getFirst();
-        return Optional.ofNullable(Protocol.Command.findCommand(command))
-                .orElseThrow(() -> new IllegalArgumentException("Invalid command received: " + command));
+    private Response echo(Command command) {
+        validateNumberOfArgs(command, 2);
+        return Response.bulkString(command.getKey());
     }
 
     public int findStringIgnoreCase(List<String> list, String str, int startIdx) {
@@ -219,8 +240,8 @@ public class RedisHandler {
         return -1;
     }
 
-    private void validateNumberOfArgs(List<String> req, int minSize) {
-        if (req.size() < minSize) {
+    private void validateNumberOfArgs(Command command, int minSize) {
+        if (command.getRequest().size() < minSize) {
             throw new IllegalArgumentException("Wrong number of arguments for command");
         }
     }

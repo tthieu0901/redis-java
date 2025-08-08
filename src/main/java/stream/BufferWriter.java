@@ -8,7 +8,7 @@ import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
-public class BufferWriter implements Writer {
+public class BufferWriter extends Writer {
     private final WritableByteChannel channel;
     private final Charset charset;
     private final Buffer outgoing;

@@ -1,13 +1,20 @@
 package stream;
 
 import java.io.IOException;
+import java.util.UUID;
 
-public interface Writer {
-    void write(String str) throws IOException;
+public abstract class Writer {
+    private final String id = UUID.randomUUID().toString();
 
-    int flush() throws IOException;
+    public final String getId() {
+        return id;
+    }
 
-    void close() throws IOException;
+    public abstract void write(String str) throws IOException;
 
-    boolean hasRemaining();
+    public abstract int flush() throws IOException;
+
+    public abstract void close() throws IOException;
+
+    public abstract boolean hasRemaining();
 }
