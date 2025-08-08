@@ -6,7 +6,8 @@ public class Main {
     private static final String DEFAULT_HOSTNAME = "localhost";
 
     public static void main(String[] args) {
-        Server server = new NonBlockingServer(DEFAULT_HOSTNAME, DEFAULT_PORT);
+        int port = args.length > 1 ? Integer.parseInt(args[1]) : DEFAULT_PORT;
+        Server server = new NonBlockingServer(DEFAULT_HOSTNAME, port);
         server.startServer();
         server.stopServer();
     }
