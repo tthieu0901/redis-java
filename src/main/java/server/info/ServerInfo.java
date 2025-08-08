@@ -46,7 +46,6 @@ public class ServerInfo {
     private void setMasterInfo(String[] args) {
         Optional.ofNullable(ArgumentExtractor.extractByKey(args, "--replicaof"))
                 .map(ArgumentExtractor.Pair::value)
-                .map(value -> value.substring(1, value.length() - 1))
                 .ifPresent(masterInfo -> {
                     var info = masterInfo.split(" ");
                     SERVER_INFO.put(InfoKey.MASTER_HOSTNAME, info[0]);

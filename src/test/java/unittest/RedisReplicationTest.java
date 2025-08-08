@@ -37,7 +37,7 @@ class RedisReplicationTest {
 
     @Test
     void info_replica_returnReplicaInfo() throws InterruptedException {
-        redisServer = RedisServer.init(new String[]{"--port", "1234", "--replicaof", "\"localhost 4321\""});
+        redisServer = RedisServer.init(new String[]{"--port", "1234", "--replicaof", "localhost 4321"});
         redisServer.startServer();
 
         client = TestHelper.startClient(RedisServer.DEFAULT_HOSTNAME, 1234);
