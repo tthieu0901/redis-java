@@ -2,6 +2,7 @@ package server.nonblocking;
 
 import server.Server;
 import server.cron.ServerCron;
+import server.cron.ServerInfo;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -13,6 +14,9 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+
+import static server.cron.ServerInfo.InfoKey.HOST_NAME;
+import static server.cron.ServerInfo.InfoKey.PORT;
 
 public class NonBlockingServer implements Server {
     private final int port;
@@ -27,6 +31,20 @@ public class NonBlockingServer implements Server {
     public NonBlockingServer(String hostName, int port) {
         this.hostName = hostName;
         this.port = port;
+    }
+
+    public static Server init() {
+        return init(new String[0]);
+    }
+
+    public static Server init(String[] args) {
+        var serverInfo = ServerInfo.getInstance();
+        serverInfo.init(args);
+
+        var port = Integer.parseInt(serverInfo.get(PORT));
+        var hostname = serverInfo.get(HOST_NAME);
+
+        return new NonBlockingServer(hostname, port);
     }
 
     @Override

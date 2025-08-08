@@ -10,6 +10,7 @@ import redis.internal.RedisListCore;
 import redis.internal.TransactionCore;
 import redis.processor.RedisWriteProcessor;
 import server.cron.ServerCron;
+import server.cron.ServerInfo;
 import stream.Writer;
 
 import java.io.IOException;
@@ -69,7 +70,7 @@ public class RedisHandler {
 
     private Response info(Command command) {
         if (command.getRequest().contains("replication")) {
-            return Response.bulkString("role:master");
+            return Response.bulkString(String.format("role:%s", ServerInfo.getInstance().getRole()));
         }
         return Response.nullValue(); // return null for now
     }

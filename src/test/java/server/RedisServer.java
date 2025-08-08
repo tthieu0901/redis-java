@@ -1,36 +1,31 @@
-package extension;
+package server;
 
-import org.junit.jupiter.api.extension.AfterAllCallback;
-import org.junit.jupiter.api.extension.BeforeAllCallback;
-import org.junit.jupiter.api.extension.Extension;
-import org.junit.jupiter.api.extension.ExtensionContext;
-import server.Server;
 import server.nonblocking.NonBlockingServer;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-public class RedisServer implements BeforeAllCallback, AfterAllCallback, Extension {
-    private static final String DEFAULT_HOSTNAME = "localhost";
-    private static final int DEFAULT_PORT = 6379;
+public class RedisServer {
+    public static final String DEFAULT_PORT = "6379";
+    public static final String DEFAULT_HOSTNAME = "localhost";
 
     private CompletableFuture<Void> serverTask;
-    private Server server;
+    private final Server server;
 
-    @Override
-    public void afterAll(ExtensionContext context) {
-        stopServer();
+    private RedisServer(String[] args) {
+        server = NonBlockingServer.init(args);
     }
 
-    @Override
-    public void beforeAll(ExtensionContext context) throws InterruptedException {
-        startServer();
+    public static RedisServer init() {
+        return new RedisServer(new String[]{});
     }
 
-    private void startServer() throws InterruptedException {
-        server = new NonBlockingServer(DEFAULT_HOSTNAME, DEFAULT_PORT);
+    public static RedisServer init(String[] args) {
+        return new RedisServer(args);
+    }
 
+    public void startServer() throws InterruptedException {
         var latch = new CountDownLatch(1);
         // Start server in background thread
         serverTask = CompletableFuture.runAsync(() -> {
@@ -43,7 +38,7 @@ public class RedisServer implements BeforeAllCallback, AfterAllCallback, Extensi
         Thread.sleep(500); // Wait for sometime for server to start up
     }
 
-    private void stopServer() {
+    public void stopServer() {
         if (server != null) {
             server.stopServer();
         }

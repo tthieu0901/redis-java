@@ -3,7 +3,7 @@ package unittest;
 import client.Client;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
-import extension.RedisServer;
+import extension.RedisServerExtension;
 import utils.TestHelper;
 
 import java.util.List;
@@ -11,7 +11,7 @@ import java.util.List;
 import static utils.ConstHelper.REDIS_HOSTNAME;
 import static utils.ConstHelper.REDIS_PORT;
 
-@ExtendWith(RedisServer.class)
+@ExtendWith(RedisServerExtension.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class BasicRedisOperationTest {
     private Client client;
@@ -72,10 +72,5 @@ class BasicRedisOperationTest {
 
         var expiredMessage = client.sendArray(List.of("GET", "test_set_with_expiry_time"));
         TestHelper.expectNull(expiredMessage);
-    }
-
-    @Test
-    void info_replication_returnReplicationInfo() {
-        TestHelper.expectBulkString("role:master", client.sendArray(List.of("INFO", "replication")));
     }
 }

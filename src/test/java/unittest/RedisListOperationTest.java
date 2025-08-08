@@ -3,7 +3,7 @@ package unittest;
 import client.Client;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
-import extension.RedisServer;
+import extension.RedisServerExtension;
 import utils.TestHelper;
 
 import java.util.List;
@@ -12,7 +12,7 @@ import java.util.concurrent.ExecutionException;
 import static utils.ConstHelper.REDIS_HOSTNAME;
 import static utils.ConstHelper.REDIS_PORT;
 
-@ExtendWith(RedisServer.class)
+@ExtendWith(RedisServerExtension.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class RedisListOperationTest {
     private Client client;
