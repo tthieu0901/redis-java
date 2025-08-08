@@ -2,7 +2,7 @@ package stream;
 
 import error.ClientDisconnectException;
 import error.NotEnoughDataException;
-import server.nonblocking.Buffer;
+import server.dto.Buffer;
 
 import java.io.EOFException;
 import java.io.IOException;

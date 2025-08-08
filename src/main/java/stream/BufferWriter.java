@@ -1,6 +1,6 @@
 package stream;
 
-import server.nonblocking.Buffer;
+import server.dto.Buffer;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

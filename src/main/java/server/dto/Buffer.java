@@ -1,4 +1,4 @@
-package server.nonblocking;
+package server.dto;
 
 public class Buffer {
     private byte[] buffer;

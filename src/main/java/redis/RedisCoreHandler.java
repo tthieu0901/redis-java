@@ -9,14 +9,14 @@ import redis.internal.NonBlockingRedisStringCore;
 import redis.internal.RedisListCore;
 import redis.internal.TransactionCore;
 import redis.processor.RedisWriteProcessor;
-import server.cron.ServerCron;
-import server.cron.ServerInfo;
+import server.cron.TimeoutCron;
+import server.info.ServerInfo;
 import stream.Writer;
 
 import java.io.IOException;
 import java.util.*;
 
-public class RedisHandler {
+public class RedisCoreHandler {
     private static final EnumSet<Protocol.Command> TRANSACTION_COMMANDS = EnumSet.of(
             Protocol.Command.MULTI,
             Protocol.Command.EXEC,
@@ -29,7 +29,7 @@ public class RedisHandler {
     private final TransactionCore transactionCore;
     private final Writer writer;
 
-    public RedisHandler(Writer writer) {
+    public RedisCoreHandler(Writer writer) {
         this.writer = writer;
         this.redisStringCore = NonBlockingRedisStringCore.getInstance();
         this.redisListCore = NonBlockingRedisListCore.getInstance();
@@ -136,7 +136,7 @@ public class RedisHandler {
         queue.add(request);
 
         // register to serverCron to handle client timeout
-        ServerCron.getInstance().registerTimeout(request.getTtlMillis(), () -> {
+        TimeoutCron.getInstance().registerTimeout(request.getTtlMillis(), () -> {
             try {
                 if (REQUEST_QUEUE.get(key).contains(request)) {
                     RedisWriteProcessor.sendNull(writer);

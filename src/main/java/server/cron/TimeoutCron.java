@@ -2,15 +2,15 @@ package server.cron;
 
 import java.util.PriorityQueue;
 
-public class ServerCron {
+public class TimeoutCron {
     // Singleton
     // ------------------------------------------------------------------
-    private static final ServerCron INSTANCE = new ServerCron();
+    private static final TimeoutCron INSTANCE = new TimeoutCron();
 
-    private ServerCron() {
+    private TimeoutCron() {
     }
 
-    public static ServerCron getInstance() {
+    public static TimeoutCron getInstance() {
         return INSTANCE;
     }
     // ------------------------------------------------------------------

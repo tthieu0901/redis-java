@@ -1,9 +1,10 @@
-package server.cron;
+package server.info;
 
 import helper.ArgumentExtractor;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 public class ServerInfo {
@@ -45,6 +46,7 @@ public class ServerInfo {
     private void setMasterInfo(String[] args) {
         Optional.ofNullable(ArgumentExtractor.extractByKey(args, "--replicaof"))
                 .map(ArgumentExtractor.Pair::value)
+                .map(value -> value.substring(1, value.length() - 1))
                 .ifPresent(masterInfo -> {
                     var info = masterInfo.split(" ");
                     SERVER_INFO.put(InfoKey.MASTER_HOSTNAME, info[0]);
@@ -65,8 +67,24 @@ public class ServerInfo {
         return SERVER_INFO.get(key);
     }
 
-    public String getRole() {
-        return SERVER_INFO.get(InfoKey.ROLE);
+    public int getPort() {
+        return Integer.parseInt(SERVER_INFO.get(InfoKey.PORT));
+    }
+
+    public String getHostName() {
+        return SERVER_INFO.get(InfoKey.HOST_NAME);
+    }
+
+    public int getMasterPort() {
+        return Integer.parseInt(SERVER_INFO.get(InfoKey.MASTER_PORT));
+    }
+
+    public String getMasterHostName() {
+        return SERVER_INFO.get(InfoKey.MASTER_HOSTNAME);
+    }
+
+    public boolean isReplica() {
+        return Objects.equals(SERVER_INFO.get(InfoKey.ROLE), "slave");
     }
 
     public String getAllInfo() {

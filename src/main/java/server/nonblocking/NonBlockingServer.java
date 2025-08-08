@@ -1,8 +1,12 @@
 package server.nonblocking;
 
+import handler.ConnHandler;
+import redis.processor.RedisWriteProcessor;
 import server.Server;
-import server.cron.ServerCron;
-import server.cron.ServerInfo;
+import server.cron.RetryCron;
+import server.cron.TimeoutCron;
+import server.dto.Conn;
+import server.info.ServerInfo;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -15,15 +19,15 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
-import static server.cron.ServerInfo.InfoKey.HOST_NAME;
-import static server.cron.ServerInfo.InfoKey.PORT;
-
 public class NonBlockingServer implements Server {
     private final int port;
     private final String hostName;
     private Selector selector;
     private ServerSocketChannel serverChannel;
     private boolean running = true;
+
+    private boolean isMasterDown = true;
+    private boolean isRetryConnectToMaster = false;
 
     // Map to store connections by their SelectionKey
     private final Map<SelectionKey, Conn> connections = new HashMap<>();
@@ -40,11 +44,7 @@ public class NonBlockingServer implements Server {
     public static Server init(String[] args) {
         var serverInfo = ServerInfo.getInstance();
         serverInfo.init(args);
-
-        var port = Integer.parseInt(serverInfo.get(PORT));
-        var hostname = serverInfo.get(HOST_NAME);
-
-        return new NonBlockingServer(hostname, port);
+        return new NonBlockingServer(serverInfo.getHostName(), serverInfo.getPort());
     }
 
     @Override
@@ -66,11 +66,13 @@ public class NonBlockingServer implements Server {
             System.out.println("Redis server listening on port " + port);
 
             while (running) {
-                ServerCron.getInstance().checkTimeouts();
+                retryConnectToMaster();
+                TimeoutCron.getInstance().checkTimeouts();
+                RetryCron.getInstance().tick();
 
-                int channels = selector.select();
+                int channels = selector.select(100);
                 if (channels == 0) {
-                    return;
+                    continue;
                 }
 
                 Set<SelectionKey> selectionKeys = selector.selectedKeys();
@@ -95,9 +97,23 @@ public class NonBlockingServer implements Server {
                         continue;
                     }
 
+                    // Handle connectable connection
+                    if (key.isConnectable()) {
+                        var channel = conn.getChannel();
+                        try {
+                            if (channel.isConnected()) {
+                                handleConnect(conn);
+                                NonBlockingServerHandler.updateSelectionKey(key, conn);
+                            }
+                        } catch (IOException e) {
+                            System.err.println("Connection failed during connect: " + e.getMessage());
+                            conn.wantClose();
+                        }
+                    }
+
                     // Handle readable connection
-                    if (key.isReadable() && conn.isWantRead()) {
-                        NonBlockingServerHandler.handleRead(conn);
+                    else if (key.isReadable() && conn.isWantRead()) {
+                        NonBlockingServerHandler.handleRead(conn, ConnHandler::handle);
                         NonBlockingServerHandler.updateSelectionKey(key, conn);
                     }
                     // Handle writable connection
@@ -110,6 +126,11 @@ public class NonBlockingServer implements Server {
                         key.cancel();
                         conn.getChannel().close();
                         connections.remove(key);
+
+                        if (conn.getConnectionType().equals(Conn.ConnectionType.REPLICA_CONNECT)) {
+                            isMasterDown = true;
+                            isRetryConnectToMaster = false;
+                        }
                     }
                 }
             }
@@ -119,9 +140,56 @@ public class NonBlockingServer implements Server {
         }
     }
 
+    private void retryConnectToMaster() {
+        if (!ServerInfo.getInstance().isReplica() || !isMasterDown || isRetryConnectToMaster) {
+            return;
+        }
+
+        RetryCron.getInstance().registerRetry(2000, () -> {
+            if (!isMasterDown) {
+                return true;
+            }
+            String masterHostName = ServerInfo.getInstance().getMasterHostName();
+            int masterPort = ServerInfo.getInstance().getMasterPort();
+            System.out.println("Retry to connect to master - " + masterHostName + ":" + masterPort);
+            try {
+                var socketChannel = SocketChannel.open();
+                socketChannel.configureBlocking(false);
+                var clientKey = socketChannel.register(selector, SelectionKey.OP_CONNECT);
+                var masterAddress = new InetSocketAddress(masterHostName, masterPort);
+                socketChannel.connect(masterAddress);
+
+                if (socketChannel.isConnectionPending()) {
+                    socketChannel.finishConnect();
+                }
+
+                System.out.println("Connected to master - " + masterHostName + ":" + masterPort);
+
+                isMasterDown = false;
+                isRetryConnectToMaster = false;
+
+                var conn = new Conn(socketChannel, Conn.ConnectionType.REPLICA_CONNECT);
+                connections.put(clientKey, conn);
+                return true;
+            } catch (IOException e) {
+                isRetryConnectToMaster = true;
+                isMasterDown = true;
+                System.err.println("Failed to connect to master - " + masterHostName + ":" + masterPort);
+                return false;
+            }
+        });
+    }
+
+    private void handleConnect(Conn conn) throws IOException {
+        RedisWriteProcessor.sendString(conn.getWriter(), "PING");
+        NonBlockingServerHandler.handleWrite(conn);
+    }
+
     @Override
     public void stopServer() {
         running = false; // Signal server loop to stop
+        isMasterDown = false;
+        isRetryConnectToMaster = true;
 
         // Interrupt the selector thread if it's blocked on select()
         selector.wakeup();
