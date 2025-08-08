@@ -1,6 +1,7 @@
 package server.nonblocking;
 
 import handler.ConnHandler;
+import redis.processor.RedisWriteProcessor;
 import server.dto.Conn;
 
 import java.io.IOException;
@@ -69,6 +70,17 @@ public class NonBlockingServerHandler {
         if (conn.isWantRead()) ops |= SelectionKey.OP_READ;
         if (conn.isWantWrite()) ops |= SelectionKey.OP_WRITE;
         key.interestOps(ops);
+    }
+
+    public static void handleMasterConnect(Conn conn) throws IOException {
+        RedisWriteProcessor.sendString(conn.getWriter(), "PING");
+
+        if (conn.getWriter().hasRemaining()) {
+            conn.wantWrite();
+            // The socket is likely ready to write in a request-response protocol,
+            // try to write it without waiting for the next iteration.
+            handleWrite(conn);
+        }
     }
 }
 

@@ -1,7 +1,6 @@
 package server.nonblocking;
 
 import handler.ConnHandler;
-import redis.processor.RedisWriteProcessor;
 import server.Server;
 import server.cron.RetryCron;
 import server.cron.TimeoutCron;
@@ -71,6 +70,9 @@ public class NonBlockingServer implements Server {
                 RetryCron.getInstance().tick();
 
                 int channels = selector.select(100);
+
+                // Only skip I/O processing if no channels are ready,
+                // but always continue to process cron jobs
                 if (channels == 0) {
                     continue;
                 }
@@ -99,18 +101,28 @@ public class NonBlockingServer implements Server {
 
                     // Handle connectable connection
                     if (key.isConnectable()) {
-                        var channel = conn.getChannel();
                         try {
-                            if (channel.isConnected()) {
-                                handleConnect(conn);
+                            var channel = conn.getChannel();
+                            if (channel.finishConnect()) {
+                                channel.configureBlocking(false);
+                                isMasterDown = false;
+                                System.out.println("Connected to master - " +
+                                        ServerInfo.getInstance().getMasterHostName() + ":" +
+                                        ServerInfo.getInstance().getMasterPort());
+
+                                // Send initial handshake/commands to master if needed
+                                // This might be needed depending on your protocol
+                                NonBlockingServerHandler.handleMasterConnect(conn);
+
+                                // Update selection key to reflect current connection state
                                 NonBlockingServerHandler.updateSelectionKey(key, conn);
                             }
                         } catch (IOException e) {
-                            System.err.println("Connection failed during connect: " + e.getMessage());
+                            System.err.println("Disconnected from master");
+                            isMasterDown = true;
                             conn.wantClose();
                         }
                     }
-
                     // Handle readable connection
                     else if (key.isReadable() && conn.isWantRead()) {
                         NonBlockingServerHandler.handleRead(conn, ConnHandler::handle);
@@ -129,60 +141,56 @@ public class NonBlockingServer implements Server {
 
                         if (conn.getConnectionType().equals(Conn.ConnectionType.REPLICA_CONNECT)) {
                             isMasterDown = true;
-                            isRetryConnectToMaster = false;
                         }
                     }
                 }
             }
-        } catch (
-                IOException e) {
+        } catch (IOException e) {
             System.err.println("Server error: " + e.getMessage());
         }
     }
 
     private void retryConnectToMaster() {
-        if (!ServerInfo.getInstance().isReplica() || !isMasterDown || isRetryConnectToMaster) {
+        if (!ServerInfo.getInstance().isReplica() || !isMasterDown) {
             return;
         }
 
-        RetryCron.getInstance().registerRetry(2000, () -> {
+        // Only register a new retry if we're not already retrying
+        if (isRetryConnectToMaster) {
+            return;
+        }
+
+        // Mark that we're starting a retry attempt
+        isRetryConnectToMaster = true;
+
+        TimeoutCron.getInstance().registerTimeout(2000, () -> {
             if (!isMasterDown) {
-                return true;
+                isRetryConnectToMaster = false;
+                return; // Stop retry - master is back up
             }
+
             String masterHostName = ServerInfo.getInstance().getMasterHostName();
             int masterPort = ServerInfo.getInstance().getMasterPort();
             System.out.println("Retry to connect to master - " + masterHostName + ":" + masterPort);
+
             try {
                 var socketChannel = SocketChannel.open();
                 socketChannel.configureBlocking(false);
-                var clientKey = socketChannel.register(selector, SelectionKey.OP_CONNECT);
                 var masterAddress = new InetSocketAddress(masterHostName, masterPort);
+
                 socketChannel.connect(masterAddress);
 
-                if (socketChannel.isConnectionPending()) {
-                    socketChannel.finishConnect();
-                }
+                SelectionKey key = socketChannel.register(selector, SelectionKey.OP_CONNECT);
 
-                System.out.println("Connected to master - " + masterHostName + ":" + masterPort);
-
-                isMasterDown = false;
-                isRetryConnectToMaster = false;
-
-                var conn = new Conn(socketChannel, Conn.ConnectionType.REPLICA_CONNECT);
-                connections.put(clientKey, conn);
-                return true;
+                Conn conn = new Conn(socketChannel, Conn.ConnectionType.REPLICA_CONNECT);
+                connections.put(key, conn);
             } catch (IOException e) {
-                isRetryConnectToMaster = true;
-                isMasterDown = true;
+                // Connection failed, continue retrying
                 System.err.println("Failed to connect to master - " + masterHostName + ":" + masterPort);
-                return false;
             }
-        });
-    }
 
-    private void handleConnect(Conn conn) throws IOException {
-        RedisWriteProcessor.sendString(conn.getWriter(), "PING");
-        NonBlockingServerHandler.handleWrite(conn);
+            isRetryConnectToMaster = false;
+        });
     }
 
     @Override
