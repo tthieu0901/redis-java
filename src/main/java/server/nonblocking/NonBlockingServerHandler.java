@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
+import java.util.List;
 
 public class NonBlockingServerHandler {
     public static Conn handleKeyAccept(SocketChannel clientChannel) throws IOException {
@@ -73,7 +74,7 @@ public class NonBlockingServerHandler {
     }
 
     public static void handleMasterConnect(Conn conn) throws IOException {
-        RedisWriteProcessor.sendString(conn.getWriter(), "PING");
+        RedisWriteProcessor.sendArray(conn.getWriter(), List.of("PING"));
 
         if (conn.getWriter().hasRemaining()) {
             conn.wantWrite();
