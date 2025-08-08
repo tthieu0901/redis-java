@@ -24,14 +24,7 @@ public class ServerInfo {
     // Default value
     private static final int DEFAULT_PORT = 6379;
     private static final String DEFAULT_HOSTNAME = "localhost";
-
-    public String get(InfoKey key) {
-        return SERVER_INFO.get(key);
-    }
-
-    public String getRole() {
-        return SERVER_INFO.get(InfoKey.ROLE);
-    }
+    private static final String DEFAULT_MASTER_REP_ID = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"; // hardcode for now
 
     public void init(String[] args) {
         setDefaultValue();
@@ -45,6 +38,8 @@ public class ServerInfo {
         SERVER_INFO.put(InfoKey.ROLE, "master");
         SERVER_INFO.put(InfoKey.PORT, String.valueOf(DEFAULT_PORT));
         SERVER_INFO.put(InfoKey.HOST_NAME, DEFAULT_HOSTNAME);
+        SERVER_INFO.put(InfoKey.MASTER_REPL_ID, DEFAULT_MASTER_REP_ID);
+        SERVER_INFO.put(InfoKey.MASTER_REPL_OFFSET, String.valueOf(0));
     }
 
     private void setMasterInfo(String[] args) {
@@ -66,12 +61,30 @@ public class ServerInfo {
         SERVER_INFO.put(InfoKey.PORT, String.valueOf(port));
     }
 
+    public String get(InfoKey key) {
+        return SERVER_INFO.get(key);
+    }
+
+    public String getRole() {
+        return SERVER_INFO.get(InfoKey.ROLE);
+    }
+
+    public String getAllInfo() {
+        return String.join("\n",
+                "role:" + SERVER_INFO.get(InfoKey.ROLE),
+                "master_replid:" + SERVER_INFO.get(InfoKey.MASTER_REPL_ID),
+                "master_repl_offset:" + SERVER_INFO.get(InfoKey.MASTER_REPL_OFFSET)
+        );
+    }
+
     public enum InfoKey {
         ROLE,
         HOST_NAME,
         PORT,
         MASTER_PORT,
         MASTER_HOSTNAME,
+        MASTER_REPL_ID,
+        MASTER_REPL_OFFSET,
         ;
     }
 }

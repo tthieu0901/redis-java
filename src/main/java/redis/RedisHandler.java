@@ -70,9 +70,9 @@ public class RedisHandler {
 
     private Response info(Command command) {
         if (command.getRequest().contains("replication")) {
-            return Response.bulkString(String.format("role:%s", ServerInfo.getInstance().getRole()));
+            return Response.bulkString(ServerInfo.getInstance().getAllInfo());
         }
-        return Response.nullValue(); // return null for now
+        return Response.bulkString(ServerInfo.getInstance().getAllInfo());
     }
 
     private Response discard(Command command) {
