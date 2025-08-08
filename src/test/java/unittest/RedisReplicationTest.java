@@ -38,6 +38,6 @@ class RedisReplicationTest {
         redisServer.startServer();
 
         client = TestHelper.startClient(RedisServer.DEFAULT_HOSTNAME, 6380);
-        TestHelper.expectBulkString("role:replica", client.sendArray(List.of("INFO", "replication")));
+        TestHelper.expectBulkString("role:slave", client.sendArray(List.of("INFO", "replication")));
     }
 }
