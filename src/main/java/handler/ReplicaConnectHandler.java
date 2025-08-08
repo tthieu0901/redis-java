@@ -3,11 +3,13 @@ package handler;
 import error.ClientDisconnectException;
 import error.NotEnoughDataException;
 import redis.processor.RedisReadProcessor;
+import redis.processor.RedisWriteProcessor;
 import server.dto.Conn;
+import server.info.ServerInfo;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.util.stream.Collectors;
+import java.util.List;
 
 public class ReplicaConnectHandler implements ConnHandler {
     private static final ReplicaConnectHandler INSTANCE = new ReplicaConnectHandler();
@@ -18,6 +20,10 @@ public class ReplicaConnectHandler implements ConnHandler {
     public static ReplicaConnectHandler getInstance() {
         return INSTANCE;
     }
+
+    private boolean isPing = false;
+    private boolean isFirstRepl = false;
+    private boolean isSecondRepl = false;
 
     @Override
     public void process(Conn conn) {
@@ -40,10 +46,41 @@ public class ReplicaConnectHandler implements ConnHandler {
     private boolean ack(Conn conn) throws IOException {
         try {
             var request = RedisReadProcessor.read(conn.getReader());
-            System.out.println("Received request from master: " + request.stream().map(Object::toString).collect(Collectors.joining(" ")));
+            if (isPing && !request.contains("PONG")) {
+                handshakeFail();
+            }
+
+            if (!isFirstRepl) {
+                RedisWriteProcessor.sendArray(conn.getWriter(), List.of("REPLCONF", "listening-port", String.valueOf(ServerInfo.getInstance().getPort())));
+                isFirstRepl = true;
+                return false;
+            }
+
+            if (!request.contains("OK")) {
+                handshakeFail();
+            }
+
+            if (!isSecondRepl) {
+                RedisWriteProcessor.sendArray(conn.getWriter(), List.of("REPLCONF", "capa", "psync2"));
+                isSecondRepl = true;
+                return false;
+            }
+
+            if (!request.contains("OK")) {
+                handshakeFail();
+            }
+
+            System.out.println("Handshake OK");
         } catch (NotEnoughDataException e) {
             return false;
         }
         return true;
+    }
+
+    private void handshakeFail() {
+        isPing = true;
+        isFirstRepl = false;
+        isSecondRepl = false;
+        throw new RuntimeException("Handshake failed");
     }
 }

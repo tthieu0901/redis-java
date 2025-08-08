@@ -65,7 +65,12 @@ public class RedisCoreHandler {
             case EXEC -> exec(command);
             case DISCARD -> discard(command);
             case INFO -> info(command);
+            case REPLCONF -> replconf(command);
         };
+    }
+
+    private Response replconf(Command ignored) {
+        return Response.ok();
     }
 
     private Response info(Command command) {

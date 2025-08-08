@@ -43,6 +43,7 @@ public class Protocol {
         EXEC,
         DISCARD,
         INFO,
+        REPLCONF,
         ;
 
         public static Command findCommand(String command) {
