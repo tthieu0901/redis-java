@@ -25,9 +25,6 @@ public class ServerInfo {
     private static final int DEFAULT_PORT = 6379;
     private static final String DEFAULT_HOSTNAME = "localhost";
 
-    private static final String TRUE = "TRUE";
-    private static final String FALSE = "FALSE";
-
     public String get(InfoKey key) {
         return SERVER_INFO.get(key);
     }
@@ -57,7 +54,7 @@ public class ServerInfo {
                     var info = masterInfo.split(" ");
                     SERVER_INFO.put(InfoKey.MASTER_HOSTNAME, info[0]);
                     SERVER_INFO.put(InfoKey.MASTER_PORT, info[1]);
-                    SERVER_INFO.put(InfoKey.ROLE, "replica");
+                    SERVER_INFO.put(InfoKey.ROLE, "slave");
                 });
     }
 
