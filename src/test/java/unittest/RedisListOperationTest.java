@@ -1,9 +1,7 @@
 package unittest;
 
 import client.Client;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import extension.RedisServer;
 import utils.TestHelper;
@@ -15,16 +13,17 @@ import static utils.ConstHelper.REDIS_HOSTNAME;
 import static utils.ConstHelper.REDIS_PORT;
 
 @ExtendWith(RedisServer.class)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class RedisListOperationTest {
     private Client client;
 
-    @BeforeEach
-    void beforeEach() {
+    @BeforeAll
+    void beforeAll() {
         client = TestHelper.startClient(REDIS_HOSTNAME, REDIS_PORT);
     }
 
-    @AfterEach
-    void afterEach() {
+    @AfterAll
+    void afterAll() {
         TestHelper.stopClient(client);
     }
 

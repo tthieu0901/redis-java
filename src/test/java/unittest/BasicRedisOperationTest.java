@@ -1,9 +1,7 @@
 package unittest;
 
 import client.Client;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import extension.RedisServer;
 import utils.TestHelper;
@@ -14,16 +12,17 @@ import static utils.ConstHelper.REDIS_HOSTNAME;
 import static utils.ConstHelper.REDIS_PORT;
 
 @ExtendWith(RedisServer.class)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class BasicRedisOperationTest {
     private Client client;
 
-    @BeforeEach
-    void beforeEach() {
+    @BeforeAll
+    void beforeAll() {
         client = TestHelper.startClient(REDIS_HOSTNAME, REDIS_PORT);
     }
 
-    @AfterEach
-    void afterEach() {
+    @AfterAll
+    void afterAll() {
         TestHelper.stopClient(client);
     }
 
@@ -73,5 +72,10 @@ class BasicRedisOperationTest {
 
         var expiredMessage = client.sendArray(List.of("GET", "test_set_with_expiry_time"));
         TestHelper.expectNull(expiredMessage);
+    }
+
+    @Test
+    void info_replication_returnReplicationInfo() {
+        TestHelper.expectBulkString("role:master", client.sendArray(List.of("INFO", "replication")));
     }
 }

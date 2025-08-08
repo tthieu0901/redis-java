@@ -63,7 +63,15 @@ public class RedisHandler {
             case MULTI -> multi(command);
             case EXEC -> exec(command);
             case DISCARD -> discard(command);
+            case INFO -> info(command);
         };
+    }
+
+    private Response info(Command command) {
+        if (command.getRequest().contains("replication")) {
+            return Response.bulkString("role:master");
+        }
+        return Response.nullValue(); // return null for now
     }
 
     private Response discard(Command command) {

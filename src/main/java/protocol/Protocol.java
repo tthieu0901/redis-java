@@ -42,6 +42,7 @@ public class Protocol {
         MULTI,
         EXEC,
         DISCARD,
+        INFO,
         ;
 
         public static Command findCommand(String command) {
