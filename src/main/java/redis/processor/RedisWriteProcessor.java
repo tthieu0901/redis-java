@@ -1,6 +1,7 @@
 package redis.processor;
 
 import protocol.Protocol;
+import redis.Response;
 import stream.Writer;
 
 import java.io.IOException;
@@ -40,5 +41,24 @@ public class RedisWriteProcessor {
 
     public static void sendMessage(Writer writer, String message) throws IOException {
         writer.write(message + CRLF);
+    }
+
+    public static void sendResponse(Writer writer, Response response) throws IOException {
+        switch (response.responseType()) {
+            case STRING -> RedisWriteProcessor.sendString(writer, (String) response.message());
+            case ERROR -> RedisWriteProcessor.sendError(writer, (String) response.message());
+            case INTEGER -> RedisWriteProcessor.sendInt(writer, (int) response.message());
+            case BULK_STRING -> RedisWriteProcessor.sendBulkString(writer, (String) response.message());
+            // TODO: Handle unchecked cast later
+            case ARRAY_STRING -> RedisWriteProcessor.sendArray(writer, (List<String>) response.message());
+            case ARRAY_RESPONSE -> {
+                var responses = (List<Response>) response.message();
+                RedisWriteProcessor.sendMessage(writer, Protocol.DataType.ARRAY.getPrefix() + String.valueOf(responses.size()));
+                for (var resp : responses) {
+                    sendResponse(writer, resp);
+                }
+            }
+            case NULL -> RedisWriteProcessor.sendNull(writer);
+        }
     }
 }

@@ -1,6 +1,7 @@
 package redis;
 
 import error.ConnSleepException;
+import error.DiscardNoMultiException;
 import error.ExecNoMultiException;
 import protocol.Protocol;
 import redis.internal.NonBlockingRedisListCore;
@@ -15,7 +16,11 @@ import java.io.IOException;
 import java.util.*;
 
 public class RedisHandler {
-    private static final EnumSet<Protocol.Command> TRANSACTION_COMMANDS = EnumSet.of(Protocol.Command.MULTI, Protocol.Command.EXEC);
+    private static final EnumSet<Protocol.Command> TRANSACTION_COMMANDS = EnumSet.of(
+            Protocol.Command.MULTI,
+            Protocol.Command.EXEC,
+            Protocol.Command.DISCARD
+    );
     private static final HashMap<String, Queue<Request>> REQUEST_QUEUE = new HashMap<>();
 
     private final NonBlockingRedisStringCore redisStringCore;
@@ -35,7 +40,7 @@ public class RedisHandler {
         var command = new Command(writer.getId(), req);
         validateNumberOfArgs(command, 1);
         var resp = handleCommand(command);
-        sendResponse(resp);
+        RedisWriteProcessor.sendResponse(writer, resp);
     }
 
     private Response handleCommand(Command command) throws IOException {
@@ -57,25 +62,16 @@ public class RedisHandler {
             case INCR -> incr(command);
             case MULTI -> multi(command);
             case EXEC -> exec(command);
+            case DISCARD -> discard(command);
         };
     }
 
-    // TODO: Handle unchecked cast later
-    private void sendResponse(Response response) throws IOException {
-        switch (response.responseType()) {
-            case STRING -> RedisWriteProcessor.sendString(writer, (String) response.message());
-            case ERROR -> RedisWriteProcessor.sendError(writer, (String) response.message());
-            case INTEGER -> RedisWriteProcessor.sendInt(writer, (int) response.message());
-            case BULK_STRING -> RedisWriteProcessor.sendBulkString(writer, (String) response.message());
-            case ARRAY_STRING -> RedisWriteProcessor.sendArray(writer, (List<String>) response.message());
-            case ARRAY_RESPONSE -> {
-                var responses = (List<Response>) response.message();
-                RedisWriteProcessor.sendMessage(writer, Protocol.DataType.ARRAY.getPrefix() + String.valueOf(responses.size()));
-                for (var resp : responses) {
-                    sendResponse(resp);
-                }
-            }
-            case NULL -> RedisWriteProcessor.sendNull(writer);
+    private Response discard(Command command) {
+        try {
+            transactionCore.discard(command);
+            return Response.ok();
+        } catch (DiscardNoMultiException e) {
+            return Response.error("DISCARD without MULTI");
         }
     }
 

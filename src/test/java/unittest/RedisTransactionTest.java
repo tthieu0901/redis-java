@@ -1,11 +1,9 @@
 package unittest;
 
 import client.Client;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import extension.RedisServer;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import utils.TestHelper;
 
 import java.util.List;
@@ -51,7 +49,7 @@ class RedisTransactionTest {
     }
 
     @Test
-    void exec_noMulti_returnError() {
+    void exec_execNoMulti_returnError() {
         TestHelper.expectError("EXEC without MULTI", client.sendArray(List.of("EXEC")));
     }
 
@@ -70,5 +68,22 @@ class RedisTransactionTest {
 
         var newClient = TestHelper.startClientAndSendRequest(c -> c.sendArray(List.of("GET", "test_queue")));
         TestHelper.expectNull(newClient.get());
+
+        client.sendArray(List.of("EXEC"));
+        TestHelper.expectBulkString("13", client.sendArray(List.of("GET", "test_queue")));
+    }
+
+    @Test
+    void exec_discardNoMulti_shouldNotExecCommands() {
+        TestHelper.expectError("DISCARD without MULTI", client.sendArray(List.of("DISCARD")));
+    }
+
+    @Test
+    void exec_discardTransaction_shouldNotExecCommands() {
+        TestHelper.expectOk(client.sendArray(List.of("MULTI")));
+        TestHelper.expectQueued(client.sendArray(List.of("SET", "test_discard", "12")));
+        TestHelper.expectQueued(client.sendArray(List.of("INCR", "test_discard")));
+        TestHelper.expectOk(client.sendArray(List.of("DISCARD")));
+        TestHelper.expectNull(client.sendArray(List.of("GET", "test_discard")));
     }
 }

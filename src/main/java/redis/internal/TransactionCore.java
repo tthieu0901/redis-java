@@ -1,5 +1,6 @@
 package redis.internal;
 
+import error.DiscardNoMultiException;
 import error.ExecNoMultiException;
 import redis.Command;
 
@@ -42,5 +43,13 @@ public class TransactionCore {
             return true;
         }
         return false;
+    }
+
+    public void discard(Command command) {
+        var queue = TRANSACTION_QUEUE.get(command.getConnectionId());
+        if (queue == null) {
+            throw new DiscardNoMultiException();
+        }
+        TRANSACTION_QUEUE.remove(command.getConnectionId());
     }
 }
