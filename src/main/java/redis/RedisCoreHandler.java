@@ -40,14 +40,18 @@ public class RedisCoreHandler {
         var req = request.stream().filter(Objects::nonNull).map(Object::toString).toList();
         var command = new Command(writer.getId(), req);
         validateNumberOfArgs(command, 1);
-        var resp = handleCommand(command);
-        RedisWriteProcessor.sendResponse(writer, resp);
+        var responses = handleCommand(command);
+
+        // Send all responses
+        for (Response resp : responses) {
+            RedisWriteProcessor.sendResponse(writer, resp);
+        }
     }
 
-    private Response handleCommand(Command command) throws IOException {
+    private List<Response> handleCommand(Command command) throws IOException {
         var cmd = command.getCmd();
         if (!TRANSACTION_COMMANDS.contains(cmd) && transactionCore.queue(command)) {
-            return Response.queued();
+            return List.of(Response.queued());
         }
         return switch (cmd) {
             case PING -> ping(command);
@@ -70,63 +74,75 @@ public class RedisCoreHandler {
         };
     }
 
-    private Response psync(Command ignored) {
+    private List<Response> psync(Command ignored) {
         var replId = ServerInfo.getInstance().get(ServerInfo.InfoKey.MASTER_REPL_ID);
         var replOffset = ServerInfo.getInstance().get(ServerInfo.InfoKey.MASTER_REPL_OFFSET);
-        return Response.simpleString(String.format("FULLRESYNC %s %s", replId, replOffset));
+        var response = Response.simpleString(String.format("FULLRESYNC %s %s", replId, replOffset));
+
+        byte[] contents = HexFormat.of().parseHex(
+                "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2");
+        var rdbFileResponse = Response.rdbFile(contents);
+        // PSYNC might need to send RDB data as well - add additional responses here if needed
+        return List.of(
+                response,
+                rdbFileResponse
+        );
     }
 
-    private Response replconf(Command ignored) {
-        return Response.ok();
+    private List<Response> replconf(Command ignored) {
+        return List.of(Response.ok());
     }
 
-    private Response info(Command command) {
+    private List<Response> info(Command command) {
+        Response response;
         if (command.getRequest().contains("replication")) {
-            return Response.bulkString(ServerInfo.getInstance().getAllInfo());
+            response = Response.bulkString(ServerInfo.getInstance().getAllInfo());
+        } else {
+            response = Response.bulkString(ServerInfo.getInstance().getAllInfo());
         }
-        return Response.bulkString(ServerInfo.getInstance().getAllInfo());
+        return List.of(response);
     }
 
-    private Response discard(Command command) {
+    private List<Response> discard(Command command) {
         try {
             transactionCore.discard(command);
-            return Response.ok();
+            return List.of(Response.ok());
         } catch (DiscardNoMultiException e) {
-            return Response.error("DISCARD without MULTI");
+            return List.of(Response.error("DISCARD without MULTI"));
         }
     }
 
-    private Response exec(Command command) throws IOException {
+    private List<Response> exec(Command command) throws IOException {
         try {
             var commandQueue = transactionCore.exec(command);
             var responses = new ArrayList<Response>();
             while (!commandQueue.isEmpty()) {
-                var resp = handleCommand(commandQueue.poll());
-                responses.add(resp);
+                var commandResponses = handleCommand(commandQueue.poll());
+                responses.addAll(commandResponses); // Collect all responses from nested commands
             }
-            return Response.arrayResponse(responses);
+            return List.of(Response.arrayResponse(responses));
         } catch (ExecNoMultiException e) {
-            return Response.error("EXEC without MULTI");
+            return List.of(Response.error("EXEC without MULTI"));
         }
     }
 
-    private Response multi(Command command) {
+    private List<Response> multi(Command command) {
         transactionCore.multi(command);
-        return Response.ok();
+        return List.of(Response.ok());
     }
 
-    private Response incr(Command command) {
+    private List<Response> incr(Command command) {
         validateNumberOfArgs(command, 2);
         var key = command.getKey();
         try {
             var resp = redisStringCore.incr(key);
-            return Response.intValue(resp);
+            return List.of(Response.intValue(resp));
         } catch (NumberFormatException e) {
-            return Response.error("value is not an integer or out of range");
+            return List.of(Response.error("value is not an integer or out of range"));
         }
     }
 
-    private Response blpop(Command command) {
+    private List<Response> blpop(Command command) {
         validateNumberOfArgs(command, 2);
         var key = command.getKey();
         var timeoutSeconds = command.getData().getFirst();
@@ -141,7 +157,7 @@ public class RedisCoreHandler {
 
         var resp = redisListCore.lpop(key);
         if (resp != null) {
-            return Response.arrayString(List.of(key, resp));
+            return List.of(Response.arrayString(List.of(key, resp)));
         }
 
         var queue = REQUEST_QUEUE.computeIfAbsent(key, _ -> new ArrayDeque<>());
@@ -162,7 +178,7 @@ public class RedisCoreHandler {
         throw new ConnSleepException();
     }
 
-    private Response lpop(Command command) {
+    private List<Response> lpop(Command command) {
         validateNumberOfArgs(command, 2);
         var key = command.getKey();
         if (command.getData().isEmpty()) {
@@ -172,68 +188,70 @@ public class RedisCoreHandler {
         }
     }
 
-    private Response lpopMultipleElements(Command command, String key) {
+    private List<Response> lpopMultipleElements(Command command, String key) {
         var nPop = Integer.parseInt(command.getData().getFirst());
         var deletedList = redisListCore.lpop(key, nPop);
-        return Response.arrayString(deletedList);
+        return List.of(Response.arrayString(deletedList));
     }
 
-    private Response lpopSingleElement(String key) {
+    private List<Response> lpopSingleElement(String key) {
         var resp = redisListCore.lpop(key);
-        return resp == null
+        var response = resp == null
                 ? Response.nullValue()
                 : Response.bulkString(resp);
+        return List.of(response);
     }
 
-    private Response llen(Command command) {
+    private List<Response> llen(Command command) {
         validateNumberOfArgs(command, 2);
         var key = command.getKey();
         var len = redisListCore.size(key);
-        return Response.intValue(len);
+        return List.of(Response.intValue(len));
     }
 
-    private Response lrange(Command command) {
+    private List<Response> lrange(Command command) {
         validateNumberOfArgs(command, 4);
         var key = command.getKey();
         var data = command.getData();
         var startIdx = Integer.parseInt(data.getFirst());
         var endIdx = Integer.parseInt(data.get(1));
         var resp = redisListCore.lrange(key, startIdx, endIdx);
-        return Response.arrayString(resp);
+        return List.of(Response.arrayString(resp));
     }
 
-    private Response lpush(Command command) throws IOException {
+    private List<Response> lpush(Command command) throws IOException {
         validateNumberOfArgs(command, 3);
         var key = command.getKey();
         var items = command.getData();
         var len = redisListCore.lpush(key, items);
         tryBlop(key);
-        return Response.intValue(len);
+        return List.of(Response.intValue(len));
     }
 
-    private Response rpush(Command command) throws IOException {
+    private List<Response> rpush(Command command) throws IOException {
         validateNumberOfArgs(command, 3);
         var key = command.getKey();
         var items = command.getData();
         var len = redisListCore.rpush(key, items);
         tryBlop(key);
-        return Response.intValue(len);
+        return List.of(Response.intValue(len));
     }
 
-    private Response ping(Command ignored) {
-        return Response.simpleString("PONG");
+    private List<Response> ping(Command ignored) {
+        return List.of(Response.simpleString("PONG"));
     }
 
-    private Response get(Command command) {
+    private List<Response> get(Command command) {
         validateNumberOfArgs(command, 2);
         var key = command.getKey();
         var value = redisStringCore.get(key);
-        return Optional.ofNullable(value)
+        var response = Optional.ofNullable(value)
                 .map(Response::bulkString)
                 .orElseGet(Response::nullValue);
+        return List.of(response);
     }
 
-    private Response set(Command command) {
+    private List<Response> set(Command command) {
         validateNumberOfArgs(command, 3);
         var key = command.getKey();
         var data = command.getData();
@@ -244,12 +262,12 @@ public class RedisCoreHandler {
         } else {
             redisStringCore.set(key, value, Long.parseLong(data.get(pxIdx + 1)));
         }
-        return Response.ok();
+        return List.of(Response.ok());
     }
 
-    private Response echo(Command command) {
+    private List<Response> echo(Command command) {
         validateNumberOfArgs(command, 2);
-        return Response.bulkString(command.getKey());
+        return List.of(Response.bulkString(command.getKey()));
     }
 
     public int findStringIgnoreCase(List<String> list, String str, int startIdx) {

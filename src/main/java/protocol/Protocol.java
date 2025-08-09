@@ -10,6 +10,7 @@ public class Protocol {
         INTEGER(':'),
         BULK_STRING('$'),
         ARRAY('*'),
+        RDB_FILE('$'),
         ;
 
         private final char prefix;

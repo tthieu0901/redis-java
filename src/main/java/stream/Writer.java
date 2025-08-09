@@ -12,6 +12,8 @@ public abstract class Writer {
 
     public abstract void write(String str) throws IOException;
 
+    public abstract void write(byte[] bytes) throws IOException;
+
     public abstract int flush() throws IOException;
 
     public abstract void close() throws IOException;

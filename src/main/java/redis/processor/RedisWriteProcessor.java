@@ -39,8 +39,17 @@ public class RedisWriteProcessor {
         }
     }
 
-    public static void sendMessage(Writer writer, String message) throws IOException {
+    public static void sendRdbFile(Writer writer, byte[] message) throws IOException {
+        sendMessage(writer, Protocol.DataType.RDB_FILE.getPrefix() + String.valueOf(message.length));
+        sendMessage(writer, message);
+    }
+
+    private static void sendMessage(Writer writer, String message) throws IOException {
         writer.write(message + CRLF);
+    }
+
+    private static void sendMessage(Writer writer, byte[] message) throws IOException {
+        writer.write(message);
     }
 
     public static void sendResponse(Writer writer, Response response) throws IOException {
@@ -58,6 +67,7 @@ public class RedisWriteProcessor {
                     sendResponse(writer, resp);
                 }
             }
+            case RDF_FILE -> RedisWriteProcessor.sendRdbFile(writer, (byte[]) response.message());
             case NULL -> RedisWriteProcessor.sendNull(writer);
         }
     }

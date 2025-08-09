@@ -10,7 +10,7 @@ import server.dto.Conn;
 import java.io.EOFException;
 import java.io.IOException;
 
-public class RedisHandler implements ConnHandler {
+public class RedisHandler implements IConnHandler {
     private static final RedisHandler INSTANCE = new RedisHandler();
 
     private RedisHandler() {

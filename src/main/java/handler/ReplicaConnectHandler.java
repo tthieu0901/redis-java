@@ -12,7 +12,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.util.List;
 
-public class ReplicaConnectHandler implements ConnHandler {
+public class ReplicaConnectHandler implements IConnHandler {
     private static final ReplicaConnectHandler INSTANCE = new ReplicaConnectHandler();
     private final ServerInfo serverInfo = ServerInfo.getInstance();
 

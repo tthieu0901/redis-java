@@ -15,6 +15,7 @@ public record Response(Object message, ResponseType responseType) {
         ERROR,
         ARRAY_STRING,
         ARRAY_RESPONSE,
+        RDF_FILE,
         ;
     }
 
@@ -56,5 +57,9 @@ public record Response(Object message, ResponseType responseType) {
 
     public static Response arrayResponse(List<Response> messages) {
         return new Response(messages, ResponseType.ARRAY_RESPONSE);
+    }
+
+    public static Response rdbFile(byte[] data){
+        return new Response(data, ResponseType.RDF_FILE);
     }
 }

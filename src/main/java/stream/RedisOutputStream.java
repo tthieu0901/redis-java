@@ -16,6 +16,11 @@ public class RedisOutputStream extends Writer {
     }
 
     @Override
+    public void write(byte[] bytes) throws IOException {
+        out.write(bytes);
+    }
+
+    @Override
     public int flush() throws IOException {
         out.flush();
         return 1;

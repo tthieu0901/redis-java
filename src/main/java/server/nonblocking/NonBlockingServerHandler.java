@@ -1,6 +1,6 @@
 package server.nonblocking;
 
-import handler.ConnHandler;
+import handler.IConnHandler;
 import redis.processor.RedisWriteProcessor;
 import server.dto.Conn;
 
@@ -51,7 +51,7 @@ public class NonBlockingServerHandler {
         }
     }
 
-    public static void handleRead(Conn conn, ConnHandler task) {
+    public static void handleRead(Conn conn, IConnHandler task) {
         task.process(conn);
 
         if (conn.getWriter().hasRemaining()) {

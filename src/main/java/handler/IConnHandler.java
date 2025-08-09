@@ -2,7 +2,7 @@ package handler;
 
 import server.dto.Conn;
 
-public interface ConnHandler {
+public interface IConnHandler {
     void process(Conn conn);
 
     static void handle(Conn conn) {

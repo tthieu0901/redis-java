@@ -1,6 +1,6 @@
 package server.nonblocking;
 
-import handler.ConnHandler;
+import handler.IConnHandler;
 import server.Server;
 import server.cron.RetryCron;
 import server.cron.TimeoutCron;
@@ -125,7 +125,7 @@ public class NonBlockingServer implements Server {
                     }
                     // Handle readable connection
                     else if (key.isReadable() && conn.isWantRead()) {
-                        NonBlockingServerHandler.handleRead(conn, ConnHandler::handle);
+                        NonBlockingServerHandler.handleRead(conn, IConnHandler::handle);
                         NonBlockingServerHandler.updateSelectionKey(key, conn);
                     }
                     // Handle writable connection

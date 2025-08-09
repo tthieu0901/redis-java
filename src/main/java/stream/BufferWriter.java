@@ -23,9 +23,13 @@ public class BufferWriter extends Writer {
 
     @Override
     public void write(String str) {
-        var data = str.getBytes(charset);
-        if (data.length > 0) {
-            outgoing.append(data, data.length);
+        write(str.getBytes(charset));
+    }
+
+    @Override
+    public void write(byte[] bytes) {
+        if (bytes.length > 0) {
+            outgoing.append(bytes, bytes.length);
         }
     }
 
