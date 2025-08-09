@@ -2,6 +2,7 @@ package handler;
 
 import error.ClientDisconnectException;
 import error.NotEnoughDataException;
+import redis.RedisCoreHandler;
 import redis.processor.RedisReadProcessor;
 import redis.processor.RedisWriteProcessor;
 import server.dto.Conn;
@@ -23,11 +24,6 @@ public class ReplicaHandler implements IConnHandler {
     public static ReplicaHandler getInstance() {
         return INSTANCE;
     }
-
-    private boolean isPing = false;
-    private boolean isFirstRepl = false;
-    private boolean isSecondRepl = false;
-    private boolean isPsync = false;
 
     enum AckCommand {
         PING,
@@ -82,18 +78,25 @@ public class ReplicaHandler implements IConnHandler {
         }
     }
 
+    private boolean isHandshakeOk() {
+        return ackProcess.getLast().isReceived;
+    }
+
     private boolean ack(Conn conn) throws IOException {
         try {
-            ackProcess.getFirst().isSent = true;
             var request = RedisReadProcessor.read(conn.getReader());
             System.out.println("Request: " + request.stream().map(Object::toString).collect(Collectors.joining(" ")));
-            verifyCurrentAck(request);
 
-            var writer = conn.getWriter();
-            sendNewAckOperation(writer);
-
-            if (ackProcess.getLast().isReceived) {
+            if (isHandshakeOk()) {
                 System.out.println("Handshake OK");
+                var redisHandler = new RedisCoreHandler(conn);
+                redisHandler.handleCommand(request);
+            } else {
+                ackProcess.getFirst().isSent = true;
+                verifyCurrentAck(request);
+
+                var writer = conn.getWriter();
+                sendNewAckOperation(writer);
             }
 
         } catch (NotEnoughDataException e) {

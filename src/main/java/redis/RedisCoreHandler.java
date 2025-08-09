@@ -47,18 +47,13 @@ public class RedisCoreHandler {
         this.transactionCore = TransactionCore.getInstance();
     }
 
-    public void handleCommand(List<Object> request) throws IOException {
+    public List<Response> handleCommand(List<Object> request) throws IOException {
         var req = request.stream().filter(Objects::nonNull).map(Object::toString).toList();
         var command = new Command(writer.getId(), req);
         validateNumberOfArgs(command, 1);
         var responses = handleCommand(command);
-
-        replicateIfOk(responses, command);
-
-        // Send all responses
-        for (Response resp : responses) {
-            RedisWriteProcessor.sendResponse(writer, resp);
-        }
+       replicateIfOk(responses, command);
+       return responses;
     }
 
     private void replicateIfOk(List<Response> responses, Command command) {

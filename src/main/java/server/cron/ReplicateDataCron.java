@@ -3,6 +3,7 @@ package server.cron;
 import redis.Command;
 import redis.processor.RedisWriteProcessor;
 import server.dto.Conn;
+import server.nonblocking.NonBlockingServerHandler;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -33,6 +34,7 @@ public class ReplicateDataCron implements ICron {
             for (var replica : replicas) {
                 try {
                     RedisWriteProcessor.sendArray(replica.getWriter(), event.command.getRequest());
+                    NonBlockingServerHandler.handleWrite(replica);
                 }catch (Exception e){
                     System.err.println("Failed to replicate data to replica " + replica.getChannel().getLocalAddress());
                 }

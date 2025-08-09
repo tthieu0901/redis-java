@@ -3,12 +3,16 @@ package handler;
 import error.ClientDisconnectException;
 import error.ConnSleepException;
 import error.NotEnoughDataException;
+import redis.Command;
 import redis.RedisCoreHandler;
+import redis.Response;
 import redis.processor.RedisReadProcessor;
+import redis.processor.RedisWriteProcessor;
 import server.dto.Conn;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.util.List;
 
 public class RedisHandler implements IConnHandler {
     private static final RedisHandler INSTANCE = new RedisHandler();
@@ -19,7 +23,6 @@ public class RedisHandler implements IConnHandler {
     public static RedisHandler getInstance() {
         return INSTANCE;
     }
-
 
     @Override
     public void process(Conn conn) {
@@ -45,7 +48,12 @@ public class RedisHandler implements IConnHandler {
         try {
             var request = RedisReadProcessor.read(reader);
             var redisHandler = new RedisCoreHandler(conn);
-            redisHandler.handleCommand(request);
+            var responses = redisHandler.handleCommand(request);
+
+            // Send all responses
+            for (Response resp : responses) {
+                RedisWriteProcessor.sendResponse(conn.getWriter(), resp);
+            }
         } catch (NotEnoughDataException e) {
             reader.reset();
             return false;
