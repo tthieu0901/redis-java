@@ -9,7 +9,9 @@ import redis.internal.NonBlockingRedisStringCore;
 import redis.internal.RedisListCore;
 import redis.internal.TransactionCore;
 import redis.processor.RedisWriteProcessor;
+import server.cron.ReplicateDataCron;
 import server.cron.TimeoutCron;
+import server.dto.Conn;
 import server.info.ServerInfo;
 import stream.Writer;
 
@@ -23,14 +25,23 @@ public class RedisCoreHandler {
             Protocol.Command.DISCARD
     );
     private static final HashMap<String, Queue<Request>> REQUEST_QUEUE = new HashMap<>();
+    private static final EnumSet<Protocol.Command> PROPAGATED_COMMANDS = EnumSet.of(
+            Protocol.Command.SET,
+            Protocol.Command.RPUSH,
+            Protocol.Command.LPUSH,
+            Protocol.Command.LPOP,
+            Protocol.Command.INCR
+    );
 
     private final NonBlockingRedisStringCore redisStringCore;
     private final RedisListCore redisListCore;
     private final TransactionCore transactionCore;
     private final Writer writer;
+    private final Conn conn;
 
-    public RedisCoreHandler(Writer writer) {
-        this.writer = writer;
+    public RedisCoreHandler(Conn conn) {
+        this.conn = conn;
+        this.writer = conn.getWriter();
         this.redisStringCore = NonBlockingRedisStringCore.getInstance();
         this.redisListCore = NonBlockingRedisListCore.getInstance();
         this.transactionCore = TransactionCore.getInstance();
@@ -42,9 +53,17 @@ public class RedisCoreHandler {
         validateNumberOfArgs(command, 1);
         var responses = handleCommand(command);
 
+        replicateIfOk(responses, command);
+
         // Send all responses
         for (Response resp : responses) {
             RedisWriteProcessor.sendResponse(writer, resp);
+        }
+    }
+
+    private void replicateIfOk(List<Response> responses, Command command) {
+        if (responses.stream().noneMatch(response -> response.responseType() == Response.ResponseType.ERROR)) {
+            replicateData(command);
         }
     }
 
@@ -74,6 +93,12 @@ public class RedisCoreHandler {
         };
     }
 
+    private void replicateData(Command command) {
+        if (RedisCoreHandler.PROPAGATED_COMMANDS.contains(command.getCmd())) {
+            ReplicateDataCron.getInstance().registerCommand(command);
+        }
+    }
+
     private List<Response> psync(Command ignored) {
         var replId = ServerInfo.getInstance().get(ServerInfo.InfoKey.MASTER_REPL_ID);
         var replOffset = ServerInfo.getInstance().get(ServerInfo.InfoKey.MASTER_REPL_OFFSET);
@@ -83,6 +108,8 @@ public class RedisCoreHandler {
                 "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2");
         var rdbFileResponse = Response.rdbFile(contents);
         // PSYNC might need to send RDB data as well - add additional responses here if needed
+
+        ReplicateDataCron.getInstance().addReplica(conn);
         return List.of(
                 response,
                 rdbFileResponse
@@ -117,7 +144,9 @@ public class RedisCoreHandler {
             var commandQueue = transactionCore.exec(command);
             var responses = new ArrayList<Response>();
             while (!commandQueue.isEmpty()) {
-                var commandResponses = handleCommand(commandQueue.poll());
+                var queuedCommand = commandQueue.poll();
+                var commandResponses = handleCommand(queuedCommand);
+                replicateIfOk(commandResponses, queuedCommand);
                 responses.addAll(commandResponses); // Collect all responses from nested commands
             }
             return List.of(Response.arrayResponse(responses));
@@ -182,7 +211,7 @@ public class RedisCoreHandler {
         validateNumberOfArgs(command, 2);
         var key = command.getKey();
         if (command.getData().isEmpty()) {
-            return lpopSingleElement(key);
+            return lpopSingleElement(command);
         } else {
             return lpopMultipleElements(command, key);
         }
@@ -194,8 +223,8 @@ public class RedisCoreHandler {
         return List.of(Response.arrayString(deletedList));
     }
 
-    private List<Response> lpopSingleElement(String key) {
-        var resp = redisListCore.lpop(key);
+    private List<Response> lpopSingleElement(Command command) {
+        var resp = redisListCore.lpop(command.getKey());
         var response = resp == null
                 ? Response.nullValue()
                 : Response.bulkString(resp);
@@ -308,6 +337,8 @@ public class RedisCoreHandler {
 
             RedisWriteProcessor.sendArray(writer, List.of(key, value));
             queue.poll();
+
+            replicateData(new Command(writer.getId(), List.of("LPOP", key)));
         }
     }
 }

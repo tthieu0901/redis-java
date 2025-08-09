@@ -8,7 +8,7 @@ public interface IConnHandler {
     static void handle(Conn conn) {
         var handler = switch (conn.getConnectionType()) {
             case CLIENT_CONNECT -> RedisHandler.getInstance();
-            case REPLICA_CONNECT ->  ReplicaConnectHandler.getInstance();
+            case REPLICA_CONNECT ->  ReplicaHandler.getInstance();
         };
         handler.process(conn);
     }

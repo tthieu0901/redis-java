@@ -44,7 +44,7 @@ public class RedisHandler implements IConnHandler {
         reader.mark();
         try {
             var request = RedisReadProcessor.read(reader);
-            var redisHandler = new RedisCoreHandler(conn.getWriter());
+            var redisHandler = new RedisCoreHandler(conn);
             redisHandler.handleCommand(request);
         } catch (NotEnoughDataException e) {
             reader.reset();

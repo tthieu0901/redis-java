@@ -2,7 +2,7 @@ package server.cron;
 
 import java.util.PriorityQueue;
 
-public class TimeoutCron {
+public class TimeoutCron implements ICron {
     // Singleton
     // ------------------------------------------------------------------
     private static final TimeoutCron INSTANCE = new TimeoutCron();
@@ -17,7 +17,8 @@ public class TimeoutCron {
 
     private final PriorityQueue<TimeoutEvent> timeoutEvents = new PriorityQueue<>();
 
-    public void checkTimeouts() {
+    @Override
+    public void run() {
         while (!timeoutEvents.isEmpty() && timeoutEvents.peek().isTimeout()) {
             TimeoutEvent event = timeoutEvents.poll();
             if (event != null) {

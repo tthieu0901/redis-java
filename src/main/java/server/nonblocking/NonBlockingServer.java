@@ -2,7 +2,7 @@ package server.nonblocking;
 
 import handler.IConnHandler;
 import server.Server;
-import server.cron.RetryCron;
+import server.cron.ReplicateDataCron;
 import server.cron.TimeoutCron;
 import server.dto.Conn;
 import server.info.ServerInfo;
@@ -13,10 +13,7 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class NonBlockingServer implements Server {
     private final int port;
@@ -64,10 +61,13 @@ public class NonBlockingServer implements Server {
 
             System.out.println("Redis server listening on port " + port);
 
+            var crons = List.of(ReplicateDataCron.getInstance(),  TimeoutCron.getInstance());
+
             while (running) {
                 retryConnectToMaster();
-                TimeoutCron.getInstance().checkTimeouts();
-                RetryCron.getInstance().tick();
+                for (var cron: crons) {
+                    cron.run();
+                }
 
                 int channels = selector.select(100);
 
@@ -142,6 +142,8 @@ public class NonBlockingServer implements Server {
                         if (conn.getConnectionType().equals(Conn.ConnectionType.REPLICA_CONNECT)) {
                             isMasterDown = true;
                         }
+
+                        ReplicateDataCron.getInstance().removeReplica(conn);
                     }
                 }
             }

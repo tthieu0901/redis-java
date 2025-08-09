@@ -11,15 +11,16 @@ import stream.Writer;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 
-public class ReplicaConnectHandler implements IConnHandler {
-    private static final ReplicaConnectHandler INSTANCE = new ReplicaConnectHandler();
+public class ReplicaHandler implements IConnHandler {
+    private static final ReplicaHandler INSTANCE = new ReplicaHandler();
     private final ServerInfo serverInfo = ServerInfo.getInstance();
 
-    private ReplicaConnectHandler() {
+    private ReplicaHandler() {
     }
 
-    public static ReplicaConnectHandler getInstance() {
+    public static ReplicaHandler getInstance() {
         return INSTANCE;
     }
 
@@ -85,6 +86,7 @@ public class ReplicaConnectHandler implements IConnHandler {
         try {
             ackProcess.getFirst().isSent = true;
             var request = RedisReadProcessor.read(conn.getReader());
+            System.out.println("Request: " + request.stream().map(Object::toString).collect(Collectors.joining(" ")));
             verifyCurrentAck(request);
 
             var writer = conn.getWriter();
