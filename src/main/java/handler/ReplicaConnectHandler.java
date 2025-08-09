@@ -27,6 +27,41 @@ public class ReplicaConnectHandler implements ConnHandler {
     private boolean isSecondRepl = false;
     private boolean isPsync = false;
 
+    enum AckCommand {
+        PING,
+        FIRST_REPL,
+        SECOND_REPL,
+        PSYNC,
+        ;
+    }
+
+    static final class AckOperation {
+        public AckCommand getAckCommand() {
+            return ackCommand;
+        }
+
+        private final AckCommand ackCommand;
+        private boolean isSent;
+        private boolean isReceived;
+
+        AckOperation(AckCommand ackCommand, boolean isSent, boolean isReceived) {
+            this.ackCommand = ackCommand;
+            this.isSent = isSent;
+            this.isReceived = isReceived;
+        }
+
+        AckOperation(AckCommand ackCommand) {
+            this(ackCommand, false, false);
+        }
+    }
+
+    private final List<AckOperation> ackProcess = List.of(
+            new AckOperation(AckCommand.PING),
+            new AckOperation(AckCommand.FIRST_REPL),
+            new AckOperation(AckCommand.SECOND_REPL),
+            new AckOperation(AckCommand.PSYNC)
+    );
+
     @Override
     public void process(Conn conn) {
         try {
@@ -47,67 +82,78 @@ public class ReplicaConnectHandler implements ConnHandler {
 
     private boolean ack(Conn conn) throws IOException {
         try {
+            ackProcess.getFirst().isSent = true;
             var request = RedisReadProcessor.read(conn.getReader());
-            checkPing(request);
+            verifyCurrentAck(request);
 
             var writer = conn.getWriter();
-            if (checkFirstRepl(writer, request)) return false;
-            if (checkSecondRepl(writer, request)) return false;
-            if (checkPsync(writer, request)) return false;
+            sendNewAckOperation(writer);
 
-            System.out.println("Handshake OK");
+            if (ackProcess.getLast().isReceived) {
+                System.out.println("Handshake OK");
+            }
+
         } catch (NotEnoughDataException e) {
             return false;
+        } catch (IOException e) {
+            handshakeFail();
+            throw e;
         }
         return true;
     }
 
-    private void checkPing(List<Object> request) {
-        if (isPing && !request.contains("PONG")) {
-            handshakeFail();
+    private void sendNewAckOperation(Writer writer) throws IOException {
+        AckOperation currentOperation = null;
+        for (AckOperation process : ackProcess) {
+            if (!process.isSent) {
+                currentOperation = process;
+                break;
+            }
+        }
+
+        if (currentOperation != null) {
+            currentOperation.isSent = true;
+            switch (currentOperation.getAckCommand()) {
+                case FIRST_REPL ->
+                        RedisWriteProcessor.sendArray(writer, List.of("REPLCONF", "listening-port", String.valueOf(ServerInfo.getInstance().getPort())));
+                case SECOND_REPL -> RedisWriteProcessor.sendArray(writer, List.of("REPLCONF", "capa", "psync2"));
+                case PSYNC -> RedisWriteProcessor.sendArray(writer, List.of("PSYNC", "?", "-1"));
+            }
         }
     }
 
-    private boolean checkFirstRepl(Writer writer, List<Object> request) throws IOException {
-        if (!isFirstRepl) {
-            RedisWriteProcessor.sendArray(writer, List.of("REPLCONF", "listening-port", String.valueOf(ServerInfo.getInstance().getPort())));
-            isFirstRepl = true;
-            return true;
+    private void verifyCurrentAck(List<Object> request) {
+        AckOperation currentOperation = null;
+        for (AckOperation ack : ackProcess) {
+            if (!ack.isReceived) {
+                currentOperation = ack;
+                break;
+            }
         }
 
-        if (!request.contains("OK")) {
+        if (currentOperation == null) {
+            return;
+        }
+
+        var isCorrectAckResponse = switch (currentOperation.getAckCommand()) {
+            case PING -> request.contains("PONG");
+            case FIRST_REPL, SECOND_REPL -> request.contains("OK");
+            case PSYNC -> !request.isEmpty() && request.getFirst().toString().contains("FULLRESYNC");
+        };
+
+        if (isCorrectAckResponse) {
+            currentOperation.isReceived = true;
+        } else {
             handshakeFail();
         }
-        return false;
-    }
-
-    private boolean checkSecondRepl(Writer writer, List<Object> request) throws IOException {
-        if (!isSecondRepl) {
-            RedisWriteProcessor.sendArray(writer, List.of("REPLCONF", "capa", "psync2"));
-            isSecondRepl = true;
-            return true;
-        }
-
-        if (!request.contains("OK")) {
-            handshakeFail();
-        }
-        return false;
-    }
-
-    private boolean checkPsync(Writer writer, List<Object> ignored) throws IOException {
-        if (!isPsync) {
-            RedisWriteProcessor.sendArray(writer, List.of("PSYNC", "?", "-1"));
-            isPsync = true;
-            return true;
-        }
-        return false;
     }
 
     private void handshakeFail() {
-        isPing = true;
-        isFirstRepl = false;
-        isSecondRepl = false;
-        isPsync = false;
+        for (var ack : ackProcess) {
+            ack.isSent = false;
+            ack.isReceived = false;
+        }
+        ackProcess.getFirst().isSent = true;
         throw new RuntimeException("Handshake failed");
     }
 }

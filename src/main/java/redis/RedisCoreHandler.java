@@ -71,7 +71,9 @@ public class RedisCoreHandler {
     }
 
     private Response psync(Command ignored) {
-        return Response.ok();
+        var replId = ServerInfo.getInstance().get(ServerInfo.InfoKey.MASTER_REPL_ID);
+        var replOffset = ServerInfo.getInstance().get(ServerInfo.InfoKey.MASTER_REPL_OFFSET);
+        return Response.simpleString(String.format("FULLRESYNC %s %s", replId, replOffset));
     }
 
     private Response replconf(Command ignored) {
