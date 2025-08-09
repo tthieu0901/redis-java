@@ -14,6 +14,7 @@ import java.util.List;
 
 public class ReplicaConnectHandler implements ConnHandler {
     private static final ReplicaConnectHandler INSTANCE = new ReplicaConnectHandler();
+    private final ServerInfo serverInfo = ServerInfo.getInstance();
 
     private ReplicaConnectHandler() {
     }
@@ -113,12 +114,13 @@ public class ReplicaConnectHandler implements ConnHandler {
 
         if (currentOperation != null) {
             currentOperation.isSent = true;
-            switch (currentOperation.getAckCommand()) {
-                case FIRST_REPL ->
-                        RedisWriteProcessor.sendArray(writer, List.of("REPLCONF", "listening-port", String.valueOf(ServerInfo.getInstance().getPort())));
-                case SECOND_REPL -> RedisWriteProcessor.sendArray(writer, List.of("REPLCONF", "capa", "psync2"));
-                case PSYNC -> RedisWriteProcessor.sendArray(writer, List.of("PSYNC", "?", "-1"));
-            }
+            List<String> ackMessage = switch (currentOperation.getAckCommand()) {
+                case PING -> List.of();
+                case FIRST_REPL -> List.of("REPLCONF", "listening-port", String.valueOf(serverInfo.getPort()));
+                case SECOND_REPL -> List.of("REPLCONF", "capa", "psync2");
+                case PSYNC -> List.of("PSYNC", "?", "-1");
+            };
+            RedisWriteProcessor.sendArray(writer, ackMessage);
         }
     }
 
